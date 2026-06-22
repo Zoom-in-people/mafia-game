@@ -192,6 +192,7 @@ function clearSession() {
     location.reload(); 
 }
 
+// [개선 완료] 교사가 직접 세팅한 규칙 기반 랜덤 분배 로직 (none 완벽 방어)
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
@@ -204,21 +205,39 @@ function handleStartGame() {
 
         let rolePool = [];
 
-        if (total >= 26) {
-            rolePool = ["mafia", "mafia", "mafia", "mafia", "spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster", "lovers", "lovers"];
-        } else if (total >= 22) {
-            rolePool = ["mafia", "mafia", "mafia", "spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "lovers", "lovers"];
-        } else {
-            rolePool = ["mafia", "mafia", "mafia", "detective", "mudang", "police", "doctor", "soldier", "terrorist", "gangster"];
+        // 1. 마피아 수 추가 (교사가 입력한 수 만큼)
+        const mafiaCount = parseInt(document.getElementById('cfg-mafia').value) || 1;
+        for (let i = 0; i < mafiaCount; i++) {
+            rolePool.push("mafia");
         }
 
-        while (rolePool.length < total) {
-            rolePool.push("citizen");
+        // 2. 연인(부부) 체크 시 최소 2명 동시 추가
+        if (document.getElementById('cfg-lovers').checked) {
+            rolePool.push("lovers");
+            rolePool.push("lovers");
         }
+
+        // 3. O/X 단일 배정 직업들 확인 (체크된 것만 풀에 추가)
+        const singleRoles = ["spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster"];
+        singleRoles.forEach(roleId => {
+            const chk = document.getElementById(`cfg-${roleId}`);
+            if (chk && chk.checked) {
+                rolePool.push(roleId);
+            }
+        });
+
+        // 4. 안전장치: 설정한 특수 직업 총합이 접속 인원보다 많을 경우 자르기
         if (rolePool.length > total) {
+            alert(`[알림] 현재 접속자(${total}명)보다 설정된 직업 수(${rolePool.length}개)가 많습니다. 앞 순서대로 ${total}명만 우선 배정됩니다.`);
             rolePool = rolePool.slice(0, total);
         }
 
+        // 5. 남은 자리는 무조건 '시민(citizen)'으로 꽉꽉 채워 none 발생 방지
+        while (rolePool.length < total) {
+            rolePool.push("citizen");
+        }
+
+        // 6. 직업 풀 피셔-예이츠 셔플
         for (let i = rolePool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];
@@ -235,12 +254,20 @@ function handleStartGame() {
 
         updates['game/status'] = 'day_discuss';
         updates['game/turn'] = 1;
-        updates['game/morning_report'] = "첫 번째 아침이 밝았습니다. 자유롭게 대화하세요.";
+        updates['game/morning_report'] = "첫 번째 아침이 밝았습니다. 자유롭게 토론하고 마피아를 추적하세요.";
         updates['game/quiz_score'] = 0;
         updates['game/current_hint'] = "없음";
 
         getDb().ref().update(updates);
     });
+}
+
+// 교사 권한 강제 종료 액션 추가
+function handleForceStopGame() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    if (confirm("진행 중인 게임을 강제로 파기하고 대기실로 리셋하시겠습니까?")) {
+        handleResetToWaiting();
+    }
 }
 
 getDb().ref('game/status').on('value', (snapshot) => {
@@ -261,7 +288,6 @@ getDb().ref('game/status').on('value', (snapshot) => {
     triggerGameViewTransition();
 });
 
-// [안전장치 대폭 보강] 엘리먼트 존재 여부를 철저하게 검사하여 스크립트가 멈추는 현상 전면 방어
 function triggerGameViewTransition() {
     const gameView = document.getElementById('game-view');
     const gameOverView = document.getElementById('game-over-view');
@@ -309,9 +335,28 @@ function renderGameScreen() {
         const quizBox = document.getElementById('ghost-quiz-section');
         const myData = players[currentUser.id] || { isAlive: true };
 
+        const roleKorean = {
+            mafia: "마피아 🔴", citizen: "시민 ⚪", spy: "스파이 🕵️‍♂️", detective: "사립탐정 🔍",
+            mudang: "무당 🔮", police: "경찰 👮", doctor: "의사 🩺", soldier: "군인 🪖",
+            assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
+        };
+
+        // 교사용 인터페이스 노출 및 실시간 직업 감시판 갱신
         if (currentUser.isAdmin) {
             const adminPanel = document.getElementById('admin-game-controls');
             if (adminPanel) adminPanel.style.display = 'block';
+            
+            const monitor = document.getElementById('admin-secret-monitor');
+            const liveRolesDisp = document.getElementById('admin-live-roles');
+            if (monitor && liveRolesDisp) {
+                monitor.style.display = 'block';
+                let htmlText = "";
+                for (let id in players) {
+                    const p = players[id];
+                    htmlText += `[${p.isAlive ? '생존' : '사망'}] <b>${p.nickname}</b>: ${roleKorean[p.role] || p.role} | `;
+                }
+                liveRolesDisp.innerHTML = htmlText;
+            }
         }
 
         if (hintBox) {
@@ -360,11 +405,6 @@ function renderGameScreen() {
         if (myRoleNameDisp) {
             if (!currentUser.isAdmin && players[currentUser.id]) {
                 currentRole = players[currentUser.id].role;
-                const roleKorean = {
-                    mafia: "마피아 🔴", citizen: "시민 ⚪", spy: "스파이 🕵️‍♂️", detective: "사립탐정 🔍",
-                    mudang: "무당 🔮", police: "경찰 👮", doctor: "의사 🩺", soldier: "군인 🪖",
-                    assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
-                };
                 myRoleNameDisp.innerText = myData.isAlive ? (roleKorean[currentRole] || currentRole) : "사망자 (유령 👻)";
             } else if (currentUser.isAdmin) {
                 myRoleNameDisp.innerText = "교사 (관전자)";
