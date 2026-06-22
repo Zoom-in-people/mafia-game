@@ -7,15 +7,12 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 언제나 우측 상단에 떠 있는 전역 나가기 버튼 -->
     <button id="global-exit-btn" onclick="handleExit()" style="display: none;">나가기</button>
 
     <div id="app">
-        <!-- [1구역] 인증 화면 -->
         <div id="auth-view" class="view">
             <h2>학교 마피아</h2>
             
-            <!-- 로그인 화면 -->
             <div id="login-section">
                 <h3>로그인</h3>
                 <input type="text" id="login-id" placeholder="아이디">
@@ -26,7 +23,6 @@
                 </div>
             </div>
 
-            <!-- 회원가입 화면 -->
             <div id="signup-section" style="display: none;">
                 <h3>회원가입</h3>
                 <input type="text" id="signup-id" placeholder="아이디">
@@ -39,10 +35,10 @@
             </div>
         </div>
 
-        <!-- [2구역] 실시간 대기실 화면 -->
         <div id="waiting-view" class="view" style="display: none;">
             <div class="header-info">
-                <h2>대기실 (<span id="player-count">0</span> / 28)</h2>
+                <h2>대기실 (<span id="player-count">0</span>)</h2>
+                <button id="guide-btn" onclick="openRoleGuide()" style="background-color: #7b1fa2; margin: 5px 0;">직업 설명 보기</button>
             </div>
             
             <div id="admin-controls" style="display: none;">
@@ -59,7 +55,6 @@
             <div id="player-list"></div>
         </div>
 
-        <!-- [3구역] 본 게임 화면 -->
         <div id="game-view" class="view" style="display: none;">
             <div id="game-header">
                 <h2 id="turn-display">제 1회차 - 낮</h2>
@@ -67,46 +62,48 @@
                 <div id="hint-display" class="hint-box" style="display: none;"></div>
             </div>
 
-            <!-- 본인 직업 보안 상자 -->
             <div id="my-role-box">
                 당신의 직업: <span id="my-role-name">확인 중...</span>
             </div>
 
-            <!-- 모든 직업 공통 버튼 -->
             <button id="rank-btn" onclick="toggleSuspectRank()">현재 의심 순위 보기</button>
             <div id="rank-list" class="rank-box" style="display: none;"></div>
 
-            <!-- [신규] 유령(사망자) 전용 퀴즈 섹션 (밤 시간 동안에 활성화) -->
             <div id="ghost-quiz-section" class="quiz-container" style="display: none;">
                 <h4>👻 유령 전용 미션 (정답 시 단서 획득)</h4>
                 <div id="quiz-question">문제를 불러오는 중...</div>
                 <div id="quiz-options"></div>
             </div>
 
-            <!-- 28인 그리드판 -->
             <div id="player-grid"></div>
 
-            <!-- 교사용 밤/낮 전환 패널 -->
             <div id="admin-game-controls" style="display: none; margin-top: 20px;">
                 <button id="next-stage-btn" onclick="handleNextStage()" style="background-color: #2196F3;">다음 단계로 (밤으로 이동)</button>
             </div>
         </div>
+    </div>
 
-        <!-- [4구역] 게임 종료 화면 -->
-        <div id="game-over-view" class="view" style="display: none;">
-            <h2 id="winner-title" style="text-align: center; color: #d32f2f; margin-bottom: 20px;">게임 종료</h2>
-            <div id="final-report" class="alert-box">결과 분석 중...</div>
-            
-            <h4>최종 전체 직업 공개</h4>
-            <div id="final-role-list" class="rank-box"></div>
-
-            <div id="admin-reset-controls" style="display: none; margin-top: 20px;">
-                <button onclick="handleResetToWaiting()" style="background-color: #4CAF50;">다시 대기실로 돌아가기</button>
+    <div id="role-guide-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeRoleGuide()">&times;</span>
+            <h3>🕵️‍♂️ 학교 마피아 직업 완벽 가이드</h3>
+            <div class="modal-scroll-area">
+                <p><strong>마피아 🔴</strong>: 밤마다 투표를 통해 시민 1명을 습격합니다.</p>
+                <p><strong>스파이 🕵️‍♂️</strong>: 마피아 편입니다. 사립탐정 등 특수직업의 정보를 마피아에게 은밀하게 익명 귓속말 배지로 제보합니다.</p>
+                <p><strong>경찰 👮</strong>: 밤마다 1명이 마피아 진영인지 아닌지 과학수사로 판별합니다.</p>
+                <p><strong>의사 🩺</strong>: 밤마다 1명을 지정하여 마피아의 공격으로부터 수호합니다.</p>
+                <p><strong>무당 🔮</strong>: 유령들에게 기도를 올려 밤마다 1명의 정확한 직업을 확인합니다.</p>
+                <p><strong>사립탐정 🔍</strong>: 밤에 조사한 타겟이 누구를 지목하여 능력을 행사했는지 경로를 추적합니다. (단, 일반 시민의 의심메모는 감지 불가)</p>
+                <p><strong>군인 🪖</strong>: 마피아의 습격을 최초 1회 자동 방어합니다. 2번째 습격 시 사망합니다.</p>
+                <p><strong>국회의원 ⚖️</strong>: 면책특권이 있어 낮 투표 결과로 사형이 확정되더라도 죽지 않고 생존합니다.</p>
+                <p><strong>테러리스트 💣</strong>: 낮 투표로 죽으면 지목한 1명을 즉사 동반 사형시키며, 밤에 마피아에게 습격당하면 습격한 마피아 중 1명을 반사 즉사시킵니다.</p>
+                <p><strong>건달 🔨</strong>: 밤에 협박한 타겟 1명의 다음 날 낮 투표권을 완벽히 박탈합니다.</p>
+                <p><strong>연인 💕</strong>: 서로의 정체를 알고 시작합니다. 마피아에게 공격당하면 다른 한 명도 슬픔에 빠져 동반 사망합니다.</p>
+                <p><strong>시민 ⚪</strong>: 별도의 밤 능력은 없으나, 밤사이에 마피아로 가장 의심되는 용의자를 익명 메모하여 여론 순위를 집계할 수 있습니다.</p>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK 라이브러리 -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     

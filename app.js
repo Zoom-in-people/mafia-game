@@ -1,9 +1,15 @@
+// 전역 변수 바인딩 검증 및 Firebase RTDB 안전성 확보
+const getDb = () => {
+    if (typeof database !== 'undefined') return database;
+    if (typeof window.database !== 'undefined') return window.database;
+    return firebase.database();
+};
+
 let currentUser = null;
 let currentRole = "none";
 let currentStatus = "waiting";
 let currentQuiz = null;
 
-// [데이터 은행] 과학 및 넌센스 문제집 세팅
 const quizBank = {
     "1-1": [
         { q: "과학: 물질의 세 가지 상태 중 모양과 부피가 일정한 상태는?", a: ["고체", "액체", "기체", "플라스마"], c: 0 },
@@ -41,6 +47,7 @@ function toggleAuthMode(mode) {
     }
 }
 
+// [오류 수정 완료] 전역 변수 참조 안전 함수(getDb)로 교체하여 Uncaught ReferenceError 해결
 function handleSignup() {
     const id = document.getElementById('signup-id').value.trim();
     const pw = document.getElementById('signup-pw').value.trim();
@@ -49,11 +56,11 @@ function handleSignup() {
     if (!id || !pw || !nick) return alert('모든 필드를 입력해 주세요.');
     if (id === 'admin') return alert('admin 이라는 아이디는 생성 불가합니다.');
 
-    database.ref(`accounts/${id}`).get().then((snapshot) => {
+    getDb().ref(`accounts/${id}`).get().then((snapshot) => {
         if (snapshot.exists()) {
             alert('이미 누군가 사용 중인 아이디입니다.');
         } else {
-            database.ref(`accounts/${id}`).set({ pw, nick }).then(() => {
+            getDb().ref(`accounts/${id}`).set({ pw, nick }).then(() => {
                 alert('회원가입 완료! 로그인 화면으로 이동합니다.');
                 document.getElementById('signup-id').value = '';
                 document.getElementById('signup-pw').value = '';
@@ -61,7 +68,7 @@ function handleSignup() {
                 toggleAuthMode('login');
             });
         }
-    });
+    }).catch(err => alert("회원가입 중 오류 발생: " + err.message));
 }
 
 function handleLogin() {
@@ -75,7 +82,7 @@ function handleLogin() {
         return;
     }
 
-    database.ref(`accounts/${id}`).get().then((snapshot) => {
+    getDb().ref(`accounts/${id}`).get().then((snapshot) => {
         if (snapshot.exists() && snapshot.val().pw === pw) {
             currentUser = { id: id, nick: snapshot.val().nick, isAdmin: false };
             localStorage.setItem('mafia_session', JSON.stringify(currentUser));
@@ -96,7 +103,7 @@ function enterWaitingRoom() {
     }
 
     if (!currentUser.isAdmin) {
-        database.ref(`game/players/${currentUser.id}`).set({
+        getDb().ref(`game/players/${currentUser.id}`).set({
             nickname: currentUser.nick,
             isAlive: true,
             role: "none",
@@ -105,8 +112,8 @@ function enterWaitingRoom() {
         });
     }
 
-    database.ref('game/players').on('value', (snapshot) => {
-        if (currentStatus !== 'waiting') return;
+    // [수정 사항 반영] 학생들이 서로 확인할 수 있도록 실시간으로 대기실 화면 명단 동기화
+    getDb().ref('game/players').on('value', (snapshot) => {
         const players = snapshot.val() || {};
         const playerListContainer = document.getElementById('player-list');
         playerListContainer.innerHTML = '';
@@ -117,13 +124,18 @@ function enterWaitingRoom() {
             const player = players[id];
             playerListContainer.innerHTML += `<div class="player-card">${player.nickname}</div>`;
         }
+        // (0/28) 텍스트 규격을 제거하고 요청대로 현재 유저 인원 카운트 숫자만 표기
         document.getElementById('player-count').innerText = count;
     });
 }
 
+// [신규 기능] 가이드 모달 팝업 컨트롤러
+function openRoleGuide() { document.getElementById('role-guide-modal').style.display = 'flex'; }
+function closeRoleGuide() { document.getElementById('role-guide-modal').style.display = 'none'; }
+
 function changeQuizLevel(level) {
     if (currentUser && currentUser.isAdmin) {
-        database.ref('game/current_level').set(level);
+        getDb().ref('game/current_level').set(level);
     }
 }
 
@@ -133,7 +145,7 @@ function handleExit() {
     if (!confirmExit) return;
 
     if (!currentUser.isAdmin) {
-        database.ref(`game/players/${currentUser.id}`).remove().then(clearSession);
+        getDb().ref(`game/players/${currentUser.id}`).remove().then(clearSession);
     } else {
         clearSession();
     }
@@ -145,28 +157,42 @@ function clearSession() {
     location.reload(); 
 }
 
+// [대폭 수정] 인원수(20명, 26명, 28명) 가변 범위 대응형 자동 직업 밸런싱 알고리즘
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
-    database.ref('game/players').get().then((snapshot) => {
+    getDb().ref('game/players').get().then((snapshot) => {
         const players = snapshot.val() || {};
         const uids = Object.keys(players);
+        const total = uids.length;
 
-        if (uids.length < 1) { 
-            return alert('게임에 참여할 학생이 최소 1명 이상 필요합니다.');
+        if (total < 1) return alert('게임에 참여할 학생이 최소 1명 이상 필요합니다.');
+
+        let rolePool = [];
+
+        // 인원 비율에 근거한 동적 밸런스 분배 로직 체인
+        if (total >= 26) {
+            // 26인~28인 대규모 밸런스 (마피아 4인 체제)
+            rolePool = ["mafia", "mafia", "mafia", "mafia", "spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster", "lovers", "lovers"];
+        } else if (total >= 22) {
+            // 22인~25인 중규모 밸런스 (마피아 3인 체제, 국회의원/연인 유지)
+            rolePool = ["mafia", "mafia", "mafia", "spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "lovers", "lovers"];
+        } else {
+            // 20인 이하 컴팩트 밸런스 (마피아 3인 조밀 구성, 스파이/연인 축소 대응)
+            rolePool = ["mafia", "mafia", "mafia", "detective", "mudang", "police", "doctor", "soldier", "terrorist", "gangster"];
         }
 
-        let rolePool = [
-            "mafia", "mafia", "mafia", "mafia", 
-            "spy", "detective", "mudang", "police", 
-            "doctor", "soldier", "assemblyman", "terrorist", 
-            "gangster", "lovers", "lovers"
-        ];
-
-        while (rolePool.length < uids.length) {
+        // 인원 자리가 남는 경우는 전원 일반 시민으로 채우기
+        while (rolePool.length < total) {
             rolePool.push("citizen");
         }
 
+        // 혹시 등록 유저보다 세팅 직업 풀이 큰 초소형 예외 케이스 슬라이싱 조율
+        if (rolePool.length > total) {
+            rolePool = rolePool.slice(0, total);
+        }
+
+        // 피셔 예이츠 무작위 완전 셔플
         for (let i = rolePool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];
@@ -184,18 +210,17 @@ function handleStartGame() {
         updates['game/status'] = 'day_discuss';
         updates['game/turn'] = 1;
         updates['game/morning_report'] = "첫 번째 아침이 밝았습니다. 자유롭게 대화하세요.";
-        updates['game/quiz_score'] = 0; // 유령 퀴즈 맞힌 누적 횟수 초기화
+        updates['game/quiz_score'] = 0;
         updates['game/current_hint'] = "없음";
 
-        database.ref().update(updates);
+        getDb().ref().update(updates);
     });
 }
 
-database.ref('game/status').on('value', (snapshot) => {
+getDb().ref('game/status').on('value', (snapshot) => {
     currentStatus = snapshot.val();
     if (!currentStatus || currentStatus === 'waiting') return;
 
-    // 게임 종료 모드 분기
     if (currentStatus === 'game_over') {
         document.getElementById('game-view').style.display = 'none';
         document.getElementById('game-over-view').style.display = 'block';
@@ -214,16 +239,16 @@ database.ref('game/status').on('value', (snapshot) => {
     }
 
     if (currentRole === 'mafia' && currentStatus === 'night_action') {
-        database.ref('game/mafia_targets').on('value', () => { renderGameScreen(); });
+        getDb().ref('game/mafia_targets').on('value', () => { renderGameScreen(); });
     } else {
-        database.ref('game/mafia_targets').off();
+        getDb().ref('game/mafia_targets').off();
     }
 
     renderGameScreen();
 });
 
 function renderGameScreen() {
-    database.ref('game').get().then((snapshot) => {
+    getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
         const status = gameData.status;
@@ -235,11 +260,8 @@ function renderGameScreen() {
         const msgBox = document.getElementById('status-message');
         const hintBox = document.getElementById('hint-display');
         const quizBox = document.getElementById('ghost-quiz-section');
-
-        // 내 상태값 분석
         const myData = players[currentUser.id] || { isAlive: true };
 
-        // 1. 단서 배너 표시 제어
         if (hint !== "없음" && status === 'day_discuss') {
             hintBox.innerText = `🔍 유령들이 풀어서 획득한 단서: ${hint}`;
             hintBox.style.display = 'block';
@@ -247,7 +269,6 @@ function renderGameScreen() {
             hintBox.style.display = 'none';
         }
 
-        // 2. 시간대별 공통 텍스트 제어
         if (status === 'day_discuss') {
             msgBox.innerText = report;
             msgBox.className = "alert-box";
@@ -258,7 +279,6 @@ function renderGameScreen() {
             msgBox.className = "alert-box night";
             if (currentUser.isAdmin) document.getElementById('next-stage-btn').innerText = "다음 단계로 (아침 결과 처리)";
 
-            // [신규] 죽은 유령 유저들을 위한 퀴즈 시스템 팝업 연동
             if (!currentUser.isAdmin && !myData.isAlive) {
                 quizBox.style.display = 'block';
                 if (!currentQuiz) generateGhostQuiz(gameData.current_level || "2-1");
@@ -320,22 +340,21 @@ function renderGameScreen() {
 function handleCardClick(targetUid) {
     if (currentStatus !== 'night_action' || currentUser.isAdmin) return;
 
-    database.ref(`game/players/${currentUser.id}`).get().then((snapshot) => {
+    getDb().ref(`game/players/${currentUser.id}`).get().then((snapshot) => {
         const myData = snapshot.val();
         if (!myData.isAlive) return alert('사망한 상태에서는 퀴즈 미션으로 기여해 주세요.');
 
         if (currentRole === 'citizen' || currentRole === 'lovers') {
-            database.ref(`game/players/${currentUser.id}/suspect`).set(targetUid).then(renderGameScreen);
+            getDb().ref(`game/players/${currentUser.id}/suspect`).set(targetUid).then(renderGameScreen);
         } else if (currentRole === 'mafia') {
-            database.ref(`game/mafia_targets/${currentUser.id}`).set(targetUid);
-            database.ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
+            getDb().ref(`game/mafia_targets/${currentUser.id}`).set(targetUid);
+            getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
         } else {
-            database.ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
+            getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
         }
     });
 }
 
-// [신규 함수] 유령들을 위한 무작위 넌센스/과학 문제 제출기
 function generateGhostQuiz(level) {
     const pool = quizBank[level] || quizBank["2-1"];
     currentQuiz = pool[Math.floor(Math.random() * pool.length)];
@@ -352,8 +371,7 @@ function generateGhostQuiz(level) {
 function submitQuizAnswer(idx) {
     if (idx === currentQuiz.c) {
         alert('정답입니다! 단서 유령 에너지가 1 쌓였습니다.');
-        // 실시간 퀴즈 스코어 축적
-        database.ref('game/quiz_score').transaction((score) => (score || 0) + 1);
+        getDb().ref('game/quiz_score').transaction((score) => (score || 0) + 1);
     } else {
         alert('오답입니다. 다음 문제를 준비합니다.');
     }
@@ -368,7 +386,7 @@ function toggleSuspectRank() {
         return;
     }
 
-    database.ref('game/players').get().then((snapshot) => {
+    getDb().ref('game/players').get().then((snapshot) => {
         const players = snapshot.val() || {};
         let counts = {};
 
@@ -394,12 +412,12 @@ function toggleSuspectRank() {
 function handleNextStage() {
     if (!currentUser || !currentUser.isAdmin) return;
     
-    database.ref('game/status').get().then((snapshot) => {
+    getDb().ref('game/status').get().then((snapshot) => {
         const currentStatus = snapshot.val();
         
         if (currentStatus === 'day_discuss') {
-            database.ref('game/mafia_targets').remove().then(() => {
-                database.ref('game/status').set('night_action');
+            getDb().ref('game/mafia_targets').remove().then(() => {
+                getDb().ref('game/status').set('night_action');
             });
         } else if (currentStatus === 'night_action') {
             processNightActions();
@@ -408,7 +426,7 @@ function handleNextStage() {
 }
 
 function processNightActions() {
-    database.ref('game').get().then((snapshot) => {
+    getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
         const mafiaTargets = gameData.mafia_targets || {};
@@ -418,7 +436,6 @@ function processNightActions() {
         let reports = [];
         let deadList = [];
         
-        // 1. 마피아 타겟 다수결 산출
         let mVotes = {};
         for (let mId in mafiaTargets) {
             let t = mafiaTargets[mId];
@@ -447,12 +464,11 @@ function processNightActions() {
             }
         }
 
-        // 2. 마피아 살인 및 방어막/반사 연산
         if (finalMafiaTarget !== "none" && finalMafiaTarget !== protectedUser) {
             const targetUser = players[finalMafiaTarget];
             
             if (targetUser.role === 'soldier' && targetUser.soldierLife > 1) {
-                database.ref(`game/players/${finalMafiaTarget}/soldierLife`).set(1);
+                getDb().ref(`game/players/${finalMafiaTarget}/soldierLife`).set(1);
                 reports.push(`군인인 누군가가 밤사이에 강력한 습격을 버텨냈습니다.`);
             } else if (targetUser.role === 'terrorist') {
                 deadList.push(finalMafiaTarget);
@@ -480,9 +496,8 @@ function processNightActions() {
             reports.push(`밤사이에 아무런 소동도 일어나지 않았습니다.`);
         }
 
-        // 3. [신규] 유령 퀴즈 개수 조건에 따른 간접 단서 풀링 연산
         let nextHint = "없음";
-        if (quizScore >= 2) { // 유령들이 문제를 2개 이상 해결했다면
+        if (quizScore >= 2) {
             let longestNameMafia = "";
             let shortestNameMafia = "";
             for (let id in players) {
@@ -499,15 +514,12 @@ function processNightActions() {
             }
         }
 
-        // 4. 사망 상태 업데이트 적용
         const updates = {};
         deadList.forEach(dUid => {
             updates[`game/players/${dUid}/isAlive`] = false;
-            // 즉시 로컬 캐시 메모리에서도 사망 판정 내려서 퀴즈 준비
             if (players[dUid]) players[dUid].isAlive = false;
         });
 
-        // 5. [신규 승리 판정 엔진] 생존자 카운팅을 통한 게임 자동 종료 검사
         let aliveMafiaCount = 0;
         let aliveCitizenSideCount = 0;
 
@@ -525,26 +537,24 @@ function processNightActions() {
             updates['game/status'] = 'game_over';
             updates['game/winner'] = 'mafia_win';
         } else {
-            updates['game/status'] = 'day_discuss'; // 계속 진행
+            updates['game/status'] = 'day_discuss';
         }
 
-        // 6. 특수 능력 클리어 및 다음 턴 이월 세팅
         for (let id in players) {
             updates[`game/players/${id}/nightTarget`] = "none";
             updates[`game/players/${id}/suspect`] = "none";
         }
         updates['game/morning_report'] = reports.join("\n");
         updates['game/turn'] = turn + 1;
-        updates['game/quiz_score'] = 0; // 매일 밤 퀴즈 점수 리셋
+        updates['game/quiz_score'] = 0;
         updates['game/current_hint'] = nextHint;
 
-        database.ref().update(updates);
+        getDb().ref().update(updates);
     });
 }
 
-// [신규 함수] 게임 종료 화면 렌더러 (전체 유저 원래 직업 백엔드에서 강제 언락)
 function renderGameOverScreen() {
-    database.ref('game').get().then((snapshot) => {
+    getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
         const winner = gameData.winner;
@@ -577,11 +587,10 @@ function renderGameOverScreen() {
     });
 }
 
-// [신규 함수] 교사가 리셋을 누르면 방을 날리지 않고 회원 데이터와 대기실 세션 구조로 복구
 function handleResetToWaiting() {
     if (!currentUser || !currentUser.isAdmin) return;
 
-    database.ref('game/players').get().then((snapshot) => {
+    getDb().ref('game/players').get().then((snapshot) => {
         const players = snapshot.val() || {};
         const updates = {};
 
@@ -596,9 +605,9 @@ function handleResetToWaiting() {
         updates['game/turn'] = 0;
         updates['game/current_hint'] = "없음";
 
-        database.ref().update(updates).then(() => {
+        getDb().ref().update(updates).then(() => {
             currentQuiz = null;
-            location.reload(); // 모든 기기 전면 리셋
+            location.reload(); 
         });
     });
 }
