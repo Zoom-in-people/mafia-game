@@ -110,43 +110,55 @@ function enterWaitingRoom() {
     }
 
     getDb().ref('game/players').on('value', (snapshot) => {
+        if (!currentUser) return; // 전역 안전 장치 추가
         const players = snapshot.val() || {};
         const playerListContainer = document.getElementById('player-list');
+        if (!playerListContainer) return;
+        
         playerListContainer.innerHTML = '';
-
         let count = 0;
         for (let id in players) {
             count++;
             const player = players[id];
             playerListContainer.innerHTML += `<div class="player-card">${player.nickname}</div>`;
         }
-        document.getElementById('player-count').innerText = count;
+        const countDisp = document.getElementById('player-count');
+        if (countDisp) countDisp.innerText = count;
+    });
+
+    // 로그인 직후 강제로 상태 동기화 재트리거
+    getDb().ref('game/status').get().then((snap) => {
+        const s = snap.val();
+        if (s && s !== 'waiting') {
+            triggerGameViewTransition();
+        }
     });
 }
 
 function openRoleGuide() { 
     document.getElementById('role-guide-modal').style.display = 'flex'; 
-    switchGuideTab('mafia'); // 최초 오픈 시 마피아 탭 활성화
+    switchGuideTab('mafia');
 }
 function closeRoleGuide() { document.getElementById('role-guide-modal').style.display = 'none'; }
 
-// [신규 기능] 가이드북 내부 팀별 탭 전환 스위치 로직
 function switchGuideTab(targetTeam) {
     const mafiaBtn = document.getElementById('tab-mafia-btn');
     const citizenBtn = document.getElementById('tab-citizen-btn');
     const mafiaPanel = document.getElementById('guide-tab-mafia');
     const citizenPanel = document.getElementById('guide-tab-citizen');
 
-    if (targetTeam === 'mafia') {
-        mafiaBtn.classList.add('active');
-        citizenBtn.classList.remove('active');
-        mafiaPanel.style.display = 'block';
-        citizenPanel.style.display = 'none';
-    } else {
-        citizenBtn.classList.add('active');
-        mafiaBtn.classList.remove('active');
-        citizenPanel.style.display = 'block';
-        mafiaPanel.style.display = 'none';
+    if (mafiaBtn && citizenBtn && mafiaPanel && citizenPanel) {
+        if (targetTeam === 'mafia') {
+            mafiaBtn.classList.add('active');
+            citizenBtn.classList.remove('active');
+            mafiaPanel.style.display = 'block';
+            citizenPanel.style.display = 'none';
+        } else {
+            citizenBtn.classList.add('active');
+            mafiaBtn.classList.remove('active');
+            citizenPanel.style.display = 'block';
+            mafiaPanel.style.display = 'none';
+        }
     }
 }
 
@@ -232,14 +244,31 @@ function handleStartGame() {
     });
 }
 
+// [근본 에러 수정 완료] 로그인 전 비인증 유저 상태일 경우 렌더링 조작 및 상태 조회를 차단하는 1중 안전 가드 추가
 getDb().ref('game/status').on('value', (snapshot) => {
     currentStatus = snapshot.val();
-    if (!currentStatus || currentStatus === 'waiting') return;
+    if (!currentUser) return; // 로그인 상태가 아니면 리스너 신호를 가로막아 null 터짐을 원천 방지함
 
+    if (currentStatus === 'waiting') {
+        // 대기 상태로 초기화됐을 경우 화면 처리구조
+        document.getElementById('waiting-view').style.display = 'block';
+        document.getElementById('game-view').style.display = 'none';
+        document.getElementById('game-over-view').style.display = 'none';
+        return;
+    }
+
+    triggerGameViewTransition();
+});
+
+// 화면 전환 통합 함수 격리 처리구조
+function triggerGameViewTransition() {
     if (currentStatus === 'game_over') {
         document.getElementById('game-view').style.display = 'none';
         document.getElementById('game-over-view').style.display = 'block';
-        if (currentUser.isAdmin) document.getElementById('admin-reset-controls').style.display = 'block';
+        if (currentUser.isAdmin) {
+            const resetPanel = document.getElementById('admin-reset-controls');
+            if (resetPanel) resetPanel.style.display = 'block';
+        }
         renderGameOverScreen();
         return;
     } else {
@@ -249,12 +278,6 @@ getDb().ref('game/status').on('value', (snapshot) => {
     document.getElementById('waiting-view').style.display = 'none';
     document.getElementById('game-view').style.display = 'block';
 
-    // [에러 수정 완료] 오직 교사 스크린세션일때만 admin-game-controls 엘리먼트 속성을 조작하도록 제한 배치함!
-    if (currentUser.isAdmin) {
-        const adminPanel = document.getElementById('admin-game-controls');
-        if (adminPanel) adminPanel.style.display = 'block';
-    }
-
     if (currentRole === 'mafia' && currentStatus === 'night_action') {
         getDb().ref('game/mafia_targets').on('value', () => { renderGameScreen(); });
     } else {
@@ -262,9 +285,11 @@ getDb().ref('game/status').on('value', (snapshot) => {
     }
 
     renderGameScreen();
-});
+}
 
 function renderGameScreen() {
+    if (!currentUser) return; // 2중 안전 장치
+    
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
@@ -279,83 +304,102 @@ function renderGameScreen() {
         const quizBox = document.getElementById('ghost-quiz-section');
         const myData = players[currentUser.id] || { isAlive: true };
 
-        if (hint !== "없음" && status === 'day_discuss') {
-            hintBox.innerText = `🔍 유령들이 풀어서 획득한 단서: ${hint}`;
-            hintBox.style.display = 'block';
-        } else {
-            hintBox.style.display = 'none';
+        if (currentUser.isAdmin) {
+            const adminPanel = document.getElementById('admin-game-controls');
+            if (adminPanel) adminPanel.style.display = 'block';
+        }
+
+        if (hintBox) {
+            if (hint !== "없음" && status === 'day_discuss') {
+                hintBox.innerText = `🔍 유령들이 풀어서 획득한 단서: ${hint}`;
+                hintBox.style.display = 'block';
+            } else {
+                hintBox.style.display = 'none';
+            }
         }
 
         if (status === 'day_discuss') {
-            msgBox.innerText = report;
-            msgBox.className = "alert-box";
-            quizBox.style.display = 'none';
+            if (msgBox) {
+                msgBox.innerText = report;
+                msgBox.className = "alert-box";
+            }
+            if (quizBox) quizBox.style.display = 'none';
             if (currentUser.isAdmin) {
                 const nextBtn = document.getElementById('next-stage-btn');
                 if (nextBtn) nextBtn.innerText = "다음 단계로 (밤으로 이동)";
             }
         } else if (status === 'night_action') {
-            msgBox.innerText = "밤이 되었습니다. 각자의 능력을 사용하거나 의심 대상을 메모하세요.";
-            msgBox.className = "alert-box night";
+            if (msgBox) {
+                msgBox.innerText = "밤이 되었습니다. 각자의 능력을 사용하거나 의심 대상을 메모하세요.";
+                msgBox.className = "alert-box night";
+            }
             if (currentUser.isAdmin) {
                 const nextBtn = document.getElementById('next-stage-btn');
                 if (nextBtn) nextBtn.innerText = "다음 단계로 (아침 결과 처리)";
             }
 
-            if (!currentUser.isAdmin && !myData.isAlive) {
-                quizBox.style.display = 'block';
-                if (!currentQuiz) generateGhostQuiz(gameData.current_level || "2-1");
-            } else {
-                quizBox.style.display = 'none';
+            if (quizBox) {
+                if (!currentUser.isAdmin && !myData.isAlive) {
+                    quizBox.style.display = 'block';
+                    if (!currentQuiz) generateGhostQuiz(gameData.current_level || "2-1");
+                } else {
+                    quizBox.style.display = 'none';
+                }
             }
         }
 
-        document.getElementById('turn-display').innerText = `제 ${turn}회차 - ${status === 'day_discuss' ? '낮' : '밤'}`;
+        const turnDisp = document.getElementById('turn-display');
+        if (turnDisp) turnDisp.innerText = `제 ${turn}회차 - ${status === 'day_discuss' ? '낮' : '밤'}`;
 
-        if (!currentUser.isAdmin && players[currentUser.id]) {
-            currentRole = players[currentUser.id].role;
-            const roleKorean = {
-                mafia: "마피아 🔴", citizen: "시민 ⚪", spy: "스파이 🕵️‍♂️", detective: "사립탐정 🔍",
-                mudang: "무당 🔮", police: "경찰 👮", doctor: "의사 🩺", soldier: "군인 🪖",
-                assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
-            };
-            document.getElementById('my-role-name').innerText = myData.isAlive ? (roleKorean[currentRole] || currentRole) : "사망자 (유령 👻)";
-        } else if (currentUser.isAdmin) {
-            document.getElementById('my-role-name').innerText = "교사 (관전자)";
+        const myRoleNameDisp = document.getElementById('my-role-name');
+        if (myRoleNameDisp) {
+            if (!currentUser.isAdmin && players[currentUser.id]) {
+                currentRole = players[currentUser.id].role;
+                const roleKorean = {
+                    mafia: "마피아 🔴", citizen: "시민 ⚪", spy: "스파이 🕵️‍♂️", detective: "사립탐정 🔍",
+                    mudang: "무당 🔮", police: "경찰 👮", doctor: "의사 🩺", soldier: "군인 🪖",
+                    assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
+                };
+                myRoleNameDisp.innerText = myData.isAlive ? (roleKorean[currentRole] || currentRole) : "사망자 (유령 👻)";
+            } else if (currentUser.isAdmin) {
+                myRoleNameDisp.innerText = "교사 (관전자)";
+            }
         }
 
         const gridContainer = document.getElementById('player-grid');
-        gridContainer.innerHTML = '';
+        if (gridContainer) {
+            gridContainer.innerHTML = '';
 
-        for (let id in players) {
-            const p = players[id];
-            let cardClasses = ['grid-card'];
-            let badgeText = '';
-            
-            if (!p.isAlive) cardClasses.push('dead');
+            for (let id in players) {
+                const p = players[id];
+                let cardClasses = ['grid-card'];
+                let badgeText = '';
+                
+                if (!p.isAlive) cardClasses.push('dead');
 
-            if (status === 'night_action' && !currentUser.isAdmin && myData.isAlive) {
-                if ((currentRole === 'citizen' || currentRole === 'lovers') && players[currentUser.id].suspect === id) {
-                    cardClasses.push('my-selected');
-                } else if (players[currentUser.id].nightTarget === id) {
-                    cardClasses.push('my-selected');
+                if (status === 'night_action' && !currentUser.isAdmin && myData.isAlive) {
+                    if ((currentRole === 'citizen' || currentRole === 'lovers') && players[currentUser.id].suspect === id) {
+                        cardClasses.push('my-selected');
+                    } else if (players[currentUser.id].nightTarget === id) {
+                        cardClasses.push('my-selected');
+                    }
                 }
-            }
 
-            if (status === 'night_action' && currentRole === 'mafia' && myData.isAlive) {
-                let mCount = 0;
-                for (let mUid in mafiaTargets) {
-                    if (mafiaTargets[mUid] === id) mCount++;
+                if (status === 'night_action' && currentRole === 'mafia' && myData.isAlive) {
+                    let mCount = 0;
+                    for (let mUid in mafiaTargets) {
+                        if (mafiaTargets[mUid] === id) mCount++;
+                    }
+                    if (mCount > 0) badgeText = `<span class="badge">의심됨(${mCount})</span>`;
                 }
-                if (mCount > 0) badgeText = `<span class="badge">의심됨(${mCount})</span>`;
-            }
 
-            gridContainer.innerHTML += `
-                <div class="${cardClasses.join(' ')}" onclick="handleCardClick('${id}')">
-                    <span>${p.nickname}</span>
-                    ${badgeText}
-                </div>
-            `;
+                gridContainer.innerHTML += `
+                    <div class="${cardClasses.join(' ')}" onclick="handleCardClick('${id}')">
+                        <span>${p.nickname}</span>
+                        ${badgeText}
+                    </div>
+                `;
+            }
         }
     });
 }
@@ -363,8 +407,11 @@ function renderGameScreen() {
 function handleCardClick(targetUid) {
     if (currentStatus !== 'night_action' || currentUser.isAdmin) return;
 
-    getDb().ref(`game/players/${currentUser.id}`).get().then((snapshot) => {
-        const myData = snapshot.val();
+    getDb().ref(`game/players/${targetUid}`).get().then((snapshot) => {
+        // 내 생존 여부 재검사 가드 처리구조
+        return getDb().ref(`game/players/${currentUser.id}`).get();
+    }).then((mySnap) => {
+        const myData = mySnap.val();
         if (!myData.isAlive) return alert('사망한 상태에서는 퀴즈 미션으로 기여해 주세요.');
 
         if (currentRole === 'citizen' || currentRole === 'lovers') {
@@ -382,13 +429,17 @@ function generateGhostQuiz(level) {
     const pool = quizBank[level] || quizBank["2-1"];
     currentQuiz = pool[Math.floor(Math.random() * pool.length)];
 
-    document.getElementById('quiz-question').innerText = currentQuiz.q;
-    const optionsBox = document.getElementById('quiz-options');
-    optionsBox.innerHTML = '';
+    const qBox = document.getElementById('quiz-question');
+    const oBox = document.getElementById('quiz-options');
 
-    currentQuiz.a.forEach((opt, idx) => {
-        optionsBox.innerHTML += `<button class="quiz-opt-btn" onclick="submitQuizAnswer(${idx})">${idx + 1}. ${opt}</button>`;
-    });
+    if (qBox && oBox) {
+        qBox.innerText = currentQuiz.q;
+        oBox.innerHTML = '';
+
+        currentQuiz.a.forEach((opt, idx) => {
+            oBox.innerHTML += `<button class="quiz-opt-btn" onclick="submitQuizAnswer(${idx})">${idx + 1}. ${opt}</button>`;
+        });
+    }
 }
 
 function submitQuizAnswer(idx) {
@@ -404,6 +455,8 @@ function submitQuizAnswer(idx) {
 
 function toggleSuspectRank() {
     const rankListBox = document.getElementById('rank-list');
+    if (!rankListBox) return;
+    
     if (rankListBox.style.display === 'block') {
         rankListBox.style.display = 'none';
         return;
@@ -586,26 +639,28 @@ function renderGameOverScreen() {
         const report = document.getElementById('final-report');
         const roleList = document.getElementById('final-role-list');
 
-        if (winner === 'citizen_win') {
-            title.innerText = "🎉 시민 진영 승리! 🎉";
-            title.style.color = "#4CAF50";
-            report.innerText = "마피아 세력을 모두 찾아내어 학교의 평화를 지켰습니다!";
-        } else {
-            title.innerText = "🔴 마피아 진영 승리! 🔴";
-            title.style.color = "#d32f2f";
-            report.innerText = "마피아가 시민 진영을 완벽히 포섭하고 장악했습니다.";
-        }
+        if (title && report && roleList) {
+            if (winner === 'citizen_win') {
+                title.innerText = "🎉 시민 진영 승리! 🎉";
+                title.style.color = "#4CAF50";
+                report.innerText = "마피아 세력을 모두 찾아내어 학교의 평화를 지켰습니다!";
+            } else {
+                title.innerText = "🔴 마피아 진영 승리! 🔴";
+                title.style.color = "#d32f2f";
+                report.innerText = "마피아가 시민 진영을 완벽히 포섭하고 장악했습니다.";
+            }
 
-        const roleKorean = {
-            mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
-            mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
-            assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
-        };
+            const roleKorean = {
+                mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
+                mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
+                assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
+            };
 
-        roleList.innerHTML = '';
-        for (let id in players) {
-            const p = players[id];
-            roleList.innerHTML += `<div><strong>${p.nickname}</strong>: ${roleKorean[p.role] || p.role} (${p.isAlive ? '생존' : '사망'})</div>`;
+            roleList.innerHTML = '';
+            for (let id in players) {
+                const p = players[id];
+                roleList.innerHTML += `<div><strong>${p.nickname}</strong>: ${roleKorean[p.role] || p.role} (${p.isAlive ? '생존' : '사망'})</div>`;
+            }
         }
     });
 }

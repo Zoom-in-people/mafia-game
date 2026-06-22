@@ -236,7 +236,6 @@ button:hover {
     padding: 20px; border-radius: 12px; position: relative;
 }
 
-/* [신규] 모달 가이드 상단 탭 레이아웃 스타일 */
 .tab-menu {
     display: flex;
     gap: 5px;
