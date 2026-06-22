@@ -9,15 +9,14 @@ body {
     background-color: #f5f5f5;
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* 상단 고정으로 스크롤 대응 */
+    align-items: flex-start;
     min-height: 100vh;
     padding: 20px;
 }
 
-/* [수정 사항 반영] 화면 크기에 맞춰 가로 폭을 전체 영역(95%)으로 확장 */
 #app {
     width: 95%;
-    max-width: 1200px; /* 대형 모니터 해상도 방어 제한 */
+    max-width: 1200px;
     background: white;
     padding: 25px;
     border-radius: 12px;
@@ -78,7 +77,7 @@ button:hover {
 
 #player-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); /* 가변형 명단 카드 */
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 12px;
     margin-top: 20px;
     max-height: 300px;
@@ -126,6 +125,28 @@ button:hover {
     border-radius: 4px;
 }
 
+/* [신규] 상단 전체 게임 로그 히스토리 뷰 구조 디자인 */
+.history-container {
+    background: #f1f1f1;
+    border: 1px solid #dcdcdc;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    text-align: left;
+}
+.history-container h4 {
+    margin: 0 0 6px 0;
+    color: #424242;
+    font-size: 14px;
+}
+#history-log-list {
+    font-size: 13px;
+    max-height: 80px;
+    overflow-y: auto;
+    line-height: 1.5;
+    color: #555;
+}
+
 #my-role-box {
     background: #333;
     color: #fff;
@@ -137,10 +158,9 @@ button:hover {
     margin-bottom: 15px;
 }
 
-/* 대형 화면 확장 대응 28인 그리드판 */
 #player-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 10px;
     margin-top: 15px;
 }
@@ -154,7 +174,7 @@ button:hover {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     cursor: pointer;
     position: relative;
@@ -171,10 +191,7 @@ button:hover {
     background: #ff5722;
     padding: 2px 6px;
     border-radius: 4px;
-    text-align: center;
 }
-
-/* 직업 성격별 배지 색상 다양화 */
 .grid-card span.badge.green { background: #4caf50; }
 .grid-card span.badge.blue { background: #2196f3; }
 .grid-card span.badge.purple { background: #9c27b0; }
@@ -209,7 +226,6 @@ button:hover {
     font-size: 14px;
 }
 
-/* [신규] 교사용 테이블 시각화 패널 컴포넌트 */
 .table-container {
     max-height: 200px;
     overflow-y: auto;
@@ -237,6 +253,19 @@ button:hover {
     background-color: #fafafa;
     color: #bbb;
     text-decoration: line-through;
+}
+
+/* 교사용 비밀 보기 버튼 디자인 */
+.secret-reveal-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    background-color: #757575;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: auto;
+    margin: 0;
 }
 
 .quiz-container {
