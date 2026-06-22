@@ -55,8 +55,8 @@
                 </div>
 
                 <h5 style="margin: 8px 0 4px 0;">🎭 직업 정원 설정 (남는 자리는 '시민' 배정)</h5>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; text-align: left; background: white; padding: 10px; border-radius: 6px;">
-                    <div>🔴 마피아 수: <input type="number" id="cfg-mafia" value="1" min="1" style="width: 40px;">명</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; font-size: 14px; text-align: left; background: white; padding: 15px; border-radius: 6px;">
+                    <div>🔴 마피아 수: <input type="number" id="cfg-mafia" value="1" min="1" style="width: 50px; padding: 4px;">명</div>
                     <div>💕 연인(부부): <input type="checkbox" id="cfg-lovers" checked> (O 선택 시 2명)</div>
                     <div>🕵️‍♂️ 스파이: <input type="checkbox" id="cfg-spy" checked></div>
                     <div>🔍 사립탐정: <input type="checkbox" id="cfg-detective" checked></div>
@@ -69,8 +69,8 @@
                     <div>🔨 건달: <input type="checkbox" id="cfg-gangster"></div>
                 </div>
                 
-                <div style="margin-top: 10px; text-align: center;">
-                    <button id="start-btn" onclick="handleStartGame()" style="background-color: #2e7d32; width: 100%; padding: 10px; font-size: 15px;">설정값으로 게임 시작</button>
+                <div style="margin-top: 15px; text-align: center;">
+                    <button id="start-btn" onclick="handleStartGame()" style="background-color: #2e7d32; width: 100%; padding: 12px; font-size: 16px;">설정값으로 게임 시작</button>
                 </div>
             </div>
             
@@ -85,15 +85,27 @@
             </div>
 
             <div id="admin-secret-monitor" class="rank-box" style="display: none; background-color: #fff3e0; border: 1px solid #ffe0b2; margin-bottom: 15px;">
-                <h4 style="margin: 0 0 5px 0; color: #e65100;">👁️ 교사 실시간 직업 감시판 (학생에겐 안 보임)</h4>
-                <div id="admin-live-roles" style="font-size: 12px; text-align: left; max-height: 100px; overflow-y: auto;"></div>
+                <h4 style="margin: 0 0 8px 0; color: #e65100;">👁️ 교사 실시간 직업 현황판 (명단 스크롤 가능)</h4>
+                <div class="table-container">
+                    <table class="monitor-table">
+                        <thead>
+                            <tr>
+                                <th>상태</th>
+                                <th>학생 닉네임</th>
+                                <th>배정 직업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-live-roles-table">
+                            </tbody>
+                    </table>
+                </div>
             </div>
 
             <div id="my-role-box">
                 당신의 직업: <span id="my-role-name">확인 중...</span>
             </div>
 
-            <button id="rank-btn" onclick="toggleSuspectRank()">현재 의심 순위 보기</button>
+            <button id="rank-btn" onclick="toggleSuspectRank()" style="display: none; background-color: #0288d1; margin-bottom: 10px;">현재 의심 순위 보기</button>
             <div id="rank-list" class="rank-box" style="display: none;"></div>
 
             <div id="ghost-quiz-section" class="quiz-container" style="display: none;">
@@ -104,14 +116,14 @@
 
             <div id="player-grid"></div>
 
-            <div id="admin-game-controls" style="display: none; margin-top: 20px; background: #fafafa; padding: 10px; border-radius: 8px;">
+            <div id="admin-game-controls" style="display: none; margin-top: 20px; background: #fafafa; padding: 12px; border-radius: 8px;">
                 <button id="next-stage-btn" onclick="handleNextStage()" style="background-color: #2196F3; margin-bottom: 8px; width: 100%;">다음 단계로 이동</button>
                 <button onclick="handleForceStopGame()" style="background-color: #c62828; width: 100%;">🚨 게임 강제 종료 (대기실 리셋)</button>
             </div>
         </div>
 
         <div id="game-over-view" class="view" style="display: none; text-align: center;">
-            <h2 id="winner-title" style="font-size: 24px; margin-bottom: 10px;">🎉 게임 종료 🎉</h2>
+            <h2 id="winner-title" style="font-size: 26px; margin-bottom: 10px;">🎉 게임 종료 🎉</h2>
             <div id="final-report" class="alert-box" style="margin-bottom: 20px;">결과를 정산 중입니다...</div>
             
             <h3>직업 공개</h3>
