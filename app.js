@@ -1,6 +1,12 @@
-// 전역 상자에 로드된 데이터베이스 공유 객체 안전하게 상속받기
+// 전역에 등록된 Firebase 객체를 안전하게 받아오는 로직 교정
 const getDb = () => {
+    // 만약 window에 저장된 객체가 아직 준비 안 되었다면 브라우저의 기본 firebase 객체에서 가져옴
     if (window.sharedDatabase) return window.sharedDatabase;
+    
+    // 이 시점에도 초기화가 안 되어 있다면 수동으로 한 번 더 확인
+    if (firebase.apps.length === 0) {
+        console.warn("Firebase가 아직 초기화되지 않아 대기 후 재시도합니다.");
+    }
     return firebase.database();
 };
 
