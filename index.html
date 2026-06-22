@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학교 마피아 게임</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 언제나 우측 상단에 떠 있는 전역 나가기 버튼 -->
+    <button id="global-exit-btn" onclick="handleExit()" style="display: none;">나가기</button>
+
+    <div id="app">
+        <!-- [1구역] 인증 화면 -->
+        <div id="auth-view" class="view">
+            <h2>학교 마피아</h2>
+            
+            <!-- 로그인 화면 -->
+            <div id="login-section">
+                <h3>로그인</h3>
+                <input type="text" id="login-id" placeholder="아이디">
+                <input type="password" id="login-pw" placeholder="비밀번호">
+                <button onclick="handleLogin()">로그인</button>
+                <div class="toggle-text">
+                    계정이 없으신가요? <span onclick="toggleAuthMode('signup')">회원가입하기</span>
+                </div>
+            </div>
+
+            <!-- 회원가입 화면 -->
+            <div id="signup-section" style="display: none;">
+                <h3>회원가입</h3>
+                <input type="text" id="signup-id" placeholder="아이디">
+                <input type="password" id="signup-pw" placeholder="비밀번호">
+                <input type="text" id="signup-nick" placeholder="닉네임">
+                <button onclick="handleSignup()">회원가입 완료</button>
+                <div class="toggle-text">
+                    이미 계정이 있으신가요? <span onclick="toggleAuthMode('login')">로그인하기</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- [2구역] 실시간 대기실 화면 -->
+        <div id="waiting-view" class="view" style="display: none;">
+            <div class="header-info">
+                <h2>대기실 (<span id="player-count">0</span> / 28)</h2>
+            </div>
+            
+            <div id="admin-controls" style="display: none;">
+                <label for="quiz-level">퀴즈 난이도 선택: </label>
+                <select id="quiz-level" onchange="changeQuizLevel(this.value)">
+                    <option value="1-1">1학년 1학기</option>
+                    <option value="1-2">1학년 2학기</option>
+                    <option value="2-1" selected>2학년 1학기</option>
+                    <option value="2-2">2학년 2학기</option>
+                </select>
+                <button id="start-btn" onclick="handleStartGame()">게임 시작</button>
+            </div>
+            
+            <div id="player-list"></div>
+        </div>
+
+        <!-- [3구역] 본 게임 화면 -->
+        <div id="game-view" class="view" style="display: none;">
+            <div id="game-header">
+                <h2 id="turn-display">제 1회차 - 낮</h2>
+                <div id="status-message" class="alert-box">토론을 자유롭게 진행해주세요!</div>
+                <div id="hint-display" class="hint-box" style="display: none;"></div>
+            </div>
+
+            <!-- 본인 직업 보안 상자 -->
+            <div id="my-role-box">
+                당신의 직업: <span id="my-role-name">확인 중...</span>
+            </div>
+
+            <!-- 모든 직업 공통 버튼 -->
+            <button id="rank-btn" onclick="toggleSuspectRank()">현재 의심 순위 보기</button>
+            <div id="rank-list" class="rank-box" style="display: none;"></div>
+
+            <!-- [신규] 유령(사망자) 전용 퀴즈 섹션 (밤 시간 동안에 활성화) -->
+            <div id="ghost-quiz-section" class="quiz-container" style="display: none;">
+                <h4>👻 유령 전용 미션 (정답 시 단서 획득)</h4>
+                <div id="quiz-question">문제를 불러오는 중...</div>
+                <div id="quiz-options"></div>
+            </div>
+
+            <!-- 28인 그리드판 -->
+            <div id="player-grid"></div>
+
+            <!-- 교사용 밤/낮 전환 패널 -->
+            <div id="admin-game-controls" style="display: none; margin-top: 20px;">
+                <button id="next-stage-btn" onclick="handleNextStage()" style="background-color: #2196F3;">다음 단계로 (밤으로 이동)</button>
+            </div>
+        </div>
+
+        <!-- [4구역] 게임 종료 화면 -->
+        <div id="game-over-view" class="view" style="display: none;">
+            <h2 id="winner-title" style="text-align: center; color: #d32f2f; margin-bottom: 20px;">게임 종료</h2>
+            <div id="final-report" class="alert-box">결과 분석 중...</div>
+            
+            <h4>최종 전체 직업 공개</h4>
+            <div id="final-role-list" class="rank-box"></div>
+
+            <div id="admin-reset-controls" style="display: none; margin-top: 20px;">
+                <button onclick="handleResetToWaiting()" style="background-color: #4CAF50;">다시 대기실로 돌아가기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK 라이브러리 -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    
+    <script src="js/firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
