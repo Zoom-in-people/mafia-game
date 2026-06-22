@@ -56,9 +56,7 @@ button {
     cursor: pointer;
 }
 
-button:hover {
-    opacity: 0.9;
-}
+button:hover { opacity: 0.9; }
 
 .toggle-text {
     text-align: center;
@@ -66,7 +64,6 @@ button:hover {
     font-size: 14px;
     color: #666;
 }
-
 .toggle-text span {
     color: #2196F3;
     text-decoration: underline;
@@ -108,10 +105,21 @@ button:hover {
     margin: 10px 0;
     white-space: pre-line;
 }
-
 .alert-box.night {
     background-color: #1a237e;
     color: #ffffff;
+}
+
+/* 실시간 대화식 실시간 낮 투표 상황 알림 박스 */
+.vote-alert-box {
+    background-color: #fff3e0;
+    border: 2px solid #ff9800;
+    color: #e65100;
+    padding: 15px;
+    text-align: center;
+    border-radius: 8px;
+    font-weight: bold;
+    margin: 12px 0;
 }
 
 .hint-box {
@@ -125,7 +133,6 @@ button:hover {
     border-radius: 4px;
 }
 
-/* [신규] 상단 전체 게임 로그 히스토리 뷰 구조 디자인 */
 .history-container {
     background: #f1f1f1;
     border: 1px solid #dcdcdc;
@@ -182,7 +189,6 @@ button:hover {
     padding: 5px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
-
 .grid-card span.badge {
     font-size: 11px;
     color: white;
@@ -198,22 +204,20 @@ button:hover {
 .grid-card span.badge.pink { background: #e91e63; }
 
 .grid-card.my-selected {
-    border-color: #4CAF50;
-    background-color: #e8f5e9;
-    box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+    border-color: #ff9800;
+    background-color: #fff8e1;
+    box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);
 }
-
 .grid-card.dead {
     background: #ffebee;
     border-color: #ef5350;
     color: #c62828;
 }
-
 .grid-card.dead::after {
     content: "X";
     position: absolute;
     font-size: 55px;
-    color: rgba(239, 83, 80, 0.5);
+    color: rgba(239, 83, 80, 0.4);
     font-weight: 900;
 }
 
@@ -255,7 +259,6 @@ button:hover {
     text-decoration: line-through;
 }
 
-/* 교사용 비밀 보기 버튼 디자인 */
 .secret-reveal-btn {
     padding: 3px 8px;
     font-size: 11px;
@@ -268,6 +271,88 @@ button:hover {
     margin: 0;
 }
 
+/* [신규 디자인] 게임 결과 화면용 진영 레이아웃 시스템 */
+.faction-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 15px;
+}
+.faction-box {
+    padding: 18px;
+    border-radius: 10px;
+    border: 2px solid #ccc;
+}
+.mafia-faction {
+    background-color: #fff5f5;
+    border-color: #ffcdd2;
+}
+.mafia-faction h4 {
+    color: #c62828;
+    margin-bottom: 12px;
+    font-size: 16px;
+    border-bottom: 2px solid #ef5350;
+    padding-bottom: 5px;
+}
+.citizen-faction {
+    background-color: #f7f9fa;
+    border-color: #cfd8dc;
+}
+.citizen-faction h4 {
+    color: #37474f;
+    margin-bottom: 12px;
+    font-size: 16px;
+    border-bottom: 2px solid #78909c;
+    padding-bottom: 5px;
+}
+
+/* 진영 내 플레이어 카드 그리드 */
+.faction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+/* 아기자기한 캐릭터 카드 스타일 */
+.role-character-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+.role-character-card .char-icon {
+    font-size: 32px;
+    margin-bottom: 2px;
+}
+.role-character-card .char-nick {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
+.role-character-card .char-role {
+    font-size: 12px;
+    color: #666;
+    background: #f1f1f1;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+.role-character-card .char-status-badge {
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 20px;
+    margin-top: 4px;
+    color: white;
+}
+.role-character-card .char-status-badge.alive { background-color: #4caf50; }
+.role-character-card .char-status-badge.dead { background-color: #e53935; }
+
 .quiz-container {
     background: #f3e5f5;
     border: 1px solid #ce93d8;
@@ -275,69 +360,29 @@ button:hover {
     border-radius: 8px;
     margin-bottom: 15px;
 }
-
-.quiz-container h4 {
-    color: #4a148c;
-    margin-bottom: 8px;
-}
-
-#quiz-question {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 10px;
-}
-
+.quiz-container h4 { color: #4a148c; margin-bottom: 8px; }
+#quiz-question { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
 .quiz-opt-btn {
-    background: #ffffff;
-    color: #333;
-    border: 1px solid #ab47bc;
-    padding: 8px;
-    margin: 4px 0;
-    font-size: 13px;
-    text-align: left;
+    background: #ffffff; color: #333; border: 1px solid #ab47bc;
+    padding: 8px; margin: 4px 0; font-size: 13px; text-align: left;
 }
 
 .modal {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background-color: rgba(0,0,0,0.5);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 10000;
+    display: flex; justify-content: center; align-items: center; z-index: 10000;
 }
 .modal-content {
     background: white; width: 90%; max-width: 450px;
     padding: 20px; border-radius: 12px; position: relative;
 }
-
-.tab-menu {
-    display: flex;
-    gap: 5px;
-    margin-top: 15px;
-}
+.tab-menu { display: flex; gap: 5px; margin-top: 15px; }
 .tab-btn {
-    flex: 1;
-    padding: 8px;
-    margin: 0;
-    font-size: 13px;
-    background-color: #eee;
-    color: #333;
-    border: 1px solid #ccc;
+    flex: 1; padding: 8px; margin: 0; font-size: 13px;
+    background-color: #eee; color: #333; border: 1px solid #ccc;
 }
-.tab-btn.active {
-    background-color: #7b1fa2;
-    color: white;
-    border-color: #7b1fa2;
-}
-
-.modal-scroll-area {
-    max-height: 320px; overflow-y: auto; margin-top: 10px;
-    font-size: 14px; line-height: 1.6;
-}
-.modal-scroll-area p {
-    margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;
-}
-.close-modal {
-    position: absolute; top: 10px; right: 15px;
-    font-size: 24px; font-weight: bold; cursor: pointer; color: #aaa;
-}
+.tab-btn.active { background-color: #7b1fa2; color: white; border-color: #7b1fa2; }
+.modal-scroll-area { max-height: 320px; overflow-y: auto; margin-top: 10px; font-size: 14px; line-height: 1.6; }
+.modal-scroll-area p { margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+.close-modal { position: absolute; top: 10px; right: 15px; font-size: 24px; font-weight: bold; cursor: pointer; color: #aaa; }
 .close-modal:hover { color: black; }

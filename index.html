@@ -12,26 +12,20 @@
     <div id="app">
         <div id="auth-view" class="view">
             <h2>학교 마피아</h2>
-            
             <div id="login-section">
                 <h3>로그인</h3>
                 <input type="text" id="login-id" placeholder="아이디">
                 <input type="password" id="login-pw" placeholder="비밀번호">
                 <button onclick="handleLogin()">로그인</button>
-                <div class="toggle-text">
-                    계정이 없으신가요? <span onclick="toggleAuthMode('signup')">회원가입하기</span>
-                </div>
+                <div class="toggle-text">계정이 없으신가요? <span onclick="toggleAuthMode('signup')">회원가입하기</span></div>
             </div>
-
             <div id="signup-section" style="display: none;">
                 <h3>회원가입</h3>
                 <input type="text" id="signup-id" placeholder="아이디">
                 <input type="password" id="signup-pw" placeholder="비밀번호">
                 <input type="text" id="signup-nick" placeholder="닉네임">
                 <button onclick="handleSignup()">회원가입 완료</button>
-                <div class="toggle-text">
-                    이미 계정이 있으신가요? <span onclick="toggleAuthMode('login')">로그인하기</span>
-                </div>
+                <div class="toggle-text">이미 계정이 있으신가요? <span onclick="toggleAuthMode('login')">로그인하기</span></div>
             </div>
         </div>
 
@@ -43,7 +37,6 @@
             
             <div id="admin-controls" class="rank-box" style="display: none; background-color: #f1f8ff; border: 1px solid #b3d7ff;">
                 <h4 style="margin-top: 0; color: #0d47a1;">⚙️ 교사 전용 게임 세팅</h4>
-                
                 <div style="margin-bottom: 12px;">
                     <label for="quiz-level"><strong>📚 퀴즈 난이도: </strong></label>
                     <select id="quiz-level" onchange="changeQuizLevel(this.value)">
@@ -54,10 +47,10 @@
                     </select>
                 </div>
 
-                <h5 style="margin: 8px 0 4px 0;">🎭 직업 정원 설정 (남는 자리는 '시민' 배정)</h5>
+                <h5 style="margin: 8px 0 4px 0;">🎭 직업 정원 설정</h5>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; font-size: 14px; text-align: left; background: white; padding: 15px; border-radius: 6px;">
                     <div>🔴 마피아 수: <input type="number" id="cfg-mafia" value="1" min="1" style="width: 50px; padding: 4px;">명</div>
-                    <div>💕 연인(부부): <input type="checkbox" id="cfg-lovers" checked> (O 선택 시 2명)</div>
+                    <div>💕 연인(부부): <input type="checkbox" id="cfg-lovers" checked></div>
                     <div>🕵️‍♂️ 스파이: <input type="checkbox" id="cfg-spy" checked></div>
                     <div>🔍 사립탐정: <input type="checkbox" id="cfg-detective" checked></div>
                     <div>🔮 무당: <input type="checkbox" id="cfg-mudang" checked></div>
@@ -68,12 +61,10 @@
                     <div>💣 테러리스트: <input type="checkbox" id="cfg-terrorist" checked></div>
                     <div>🔨 건달: <input type="checkbox" id="cfg-gangster"></div>
                 </div>
-                
                 <div style="margin-top: 15px; text-align: center;">
-                    <button id="start-btn" onclick="handleStartGame()" style="background-color: #2e7d32; width: 100%; padding: 12px; font-size: 16px;">설정값으로 게임 시작</button>
+                    <button id="start-btn" onclick="handleStartGame()" style="background-color: #2e7d32; width: 100%; padding: 12px; font-size: 16px;">게임 시작</button>
                 </div>
             </div>
-            
             <div id="player-list"></div>
         </div>
 
@@ -89,8 +80,20 @@
                 <div id="hint-display" class="hint-box" style="display: none;"></div>
             </div>
 
+            <div id="student-vote-panel" class="vote-alert-box" style="display: none;">
+                <h4 id="vote-panel-title">🗳️ 현재 낮 투표가 진행 중입니다!</h4>
+                <p id="vote-panel-desc">아래 학생 격자판에서 투표할 사람을 선택해 주세요.</p>
+                <div id="vote-action-area" style="margin-top: 10px; display: none;">
+                    <p style="font-weight: bold; color: #d32f2f; margin-bottom: 8px;">최종 사형대 판결: 처형하시겠습니까, 부활시키시겠습니까?</p>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="submitExecutionVote('execute')" style="background-color: #e53935; margin: 0;">💀 처형</button>
+                        <button onclick="submitExecutionVote('revive')" style="background-color: #4caf50; margin: 0;">😇 부활 (살리기)</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="admin-secret-monitor" class="rank-box" style="display: none; background-color: #fff3e0; border: 1px solid #ffe0b2; margin-bottom: 15px;">
-                <h4 style="margin: 0 0 8px 0; color: #e65100;">👁️ 교사 실시간 직업 현황판 (직업 클릭 시 온/오프 토글)</h4>
+                <h4 style="margin: 0 0 8px 0; color: #e65100;">👁️ 교사 실시간 직업 현황판 (직업 클릭 시 토글)</h4>
                 <div class="table-container">
                     <table class="monitor-table">
                         <thead>
@@ -100,8 +103,7 @@
                                 <th>배정 직업 (보안 가림막)</th>
                             </tr>
                         </thead>
-                        <tbody id="admin-live-roles-table">
-                            </tbody>
+                        <tbody id="admin-live-roles-table"></tbody>
                     </table>
                 </div>
             </div>
@@ -113,9 +115,7 @@
 
             <div id="my-personal-log-box" class="rank-box" style="background-color: #f9f1ff; border-color: #d1c4e9; margin-bottom: 12px; display: none;">
                 <h4 style="color: #4a148c; margin: 0 0 5px 0;">🔮 나의 밤 능력/조사 기록 일지</h4>
-                <div id="personal-log-list" style="font-size: 13px; text-align: left; max-height: 90px; overflow-y: auto; line-height: 1.5;">
-                    아직 수행한 밤 능력이 없습니다.
-                </div>
+                <div id="personal-log-list" style="font-size: 13px; text-align: left; max-height: 90px; overflow-y: auto; line-height: 1.5;"></div>
             </div>
 
             <button id="rank-btn" onclick="toggleSuspectRank()" style="background-color: #0288d1; margin-bottom: 10px;">현재 의심 순위 보기</button>
@@ -130,29 +130,41 @@
             <div id="player-grid"></div>
 
             <div id="admin-game-controls" style="display: none; margin-top: 20px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-                <h4 style="margin-top: 0; color:#333;">🎬 교사 낮 토론/밤 제어 컨트롤러</h4>
+                <h4 style="margin-top: 0; color:#333;">🎬 교사 낮 토론/투표 제어 컨트롤러</h4>
                 
-                <div id="admin-vote-section" style="background: #fff; padding: 10px; border: 1px solid #ffc107; border-radius: 6px; margin-bottom: 12px; font-size: 13px;">
-                    <span style="color: #ff8f00; font-weight: bold;">🗳️ 낮 투표 최종 사형 처리:</span> 아래 격자판에서 사형시킬 학생을 1명 선택한 뒤 버튼을 누르세요.
-                    <button onclick="handleExecuteDayVote()" style="background-color: #e53935; padding: 8px; font-size: 13px; margin-top: 6px;">선택한 학생 투표 처형하기</button>
+                <div id="admin-step-buttons" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
+                    <button id="admin-start-vote-btn" onclick="serverStartDayVote()" style="background-color: #ff9800; padding: 12px; margin: 0;">🗳️ 학생 낮 투표 진행하기 (개시)</button>
+                    <button id="admin-finish-vote-btn" onclick="serverFinishDayVote()" style="background-color: #e53935; padding: 12px; margin: 0; display: none;">📊 투표 마감 및 사형대 소환</button>
+                    <button id="admin-apply-execution-btn" onclick="serverCalculateExecution()" style="background-color: #7b1fa2; padding: 12px; margin: 0; display: none;">⚖️ 처형/부활 찬반 표결 최종 확정</button>
                 </div>
 
                 <div style="display: flex; gap: 8px;">
                     <button id="next-stage-btn" onclick="handleNextStage()" style="background-color: #2196F3; flex: 1; padding: 12px; font-size: 14px; margin: 0;">밤으로 단계 이동</button>
-                    <button onclick="handleForceStopGame()" style="background-color: #c62828; flex: 1; padding: 12px; font-size: 14px; margin: 0;">🚨 강제 종료 (리셋)</button>
+                    <button onclick="handleForceStopGame()" style="background-color: #c62828; flex: 1; padding: 12px; font-size: 14px; margin: 0;">🚨 게임 강제 종료</button>
                 </div>
             </div>
         </div>
 
-        <div id="game-over-view" class="view" style="display: none; text-align: center;">
-            <h2 id="winner-title" style="font-size: 26px; margin-bottom: 10px;">🎉 게임 종료 🎉</h2>
-            <div id="final-report" class="alert-box" style="margin-bottom: 20px;">결과를 정산 중입니다...</div>
+        <div id="game-over-view" class="view" style="display: none;">
+            <h2 id="winner-title" style="font-size: 28px; text-align: center; margin-bottom: 10px;">🎉 게임 종료 🎉</h2>
+            <div id="final-report" class="alert-box" style="margin-bottom: 25px; text-align: center;"></div>
             
-            <h3>직업 공개</h3>
-            <div id="final-role-list" class="rank-box" style="text-align: left; background: #fdfdfd;"></div>
+            <h3 style="text-align: center; margin-bottom: 15px; color: #333;">🎭 최종 플레이어 직업 명부</h3>
+            
+            <div class="faction-container">
+                <div class="faction-box mafia-faction">
+                    <h4>🔴 마피아 진영 (Mafia Team)</h4>
+                    <div id="final-mafia-list" class="faction-grid"></div>
+                </div>
 
-            <div id="admin-reset-controls" style="display: none; margin-top: 20px;">
-                <button onclick="handleResetToWaiting()" style="background-color: #e65100; width: 100%;">대기실로 돌아가기 (모든 직업 초기화)</button>
+                <div class="faction-box citizen-faction">
+                    <h4>⚪ 시민 진영 (Citizen Team)</h4>
+                    <div id="final-citizen-list" class="faction-grid"></div>
+                </div>
+            </div>
+
+            <div id="admin-reset-controls" style="display: none; margin-top: 25px;">
+                <button onclick="handleResetToWaiting()" style="background-color: #e65100; width: 100%; padding: 14px;">대기실로 돌아가기 (초기화)</button>
             </div>
         </div>
     </div>
@@ -161,28 +173,26 @@
         <div class="modal-content">
             <span class="close-modal" onclick="closeRoleGuide()">&times;</span>
             <h3>🕵️‍♂️ 학교 마피아 직업 가이드</h3>
-            
             <div class="tab-menu">
                 <button id="tab-mafia-btn" class="tab-btn active" onclick="switchGuideTab('mafia')">마피아 진영 🔴</button>
                 <button id="tab-citizen-btn" class="tab-btn" onclick="switchGuideTab('citizen')">시민 진영 ⚪</button>
             </div>
-
             <div class="modal-scroll-area">
                 <div id="guide-tab-mafia" class="tab-panel">
-                    <p><strong>마피아 🔴</strong>: 밤마다 투표를 통해 시민 1명을 습격합니다.</p>
-                    <p><strong>스파이 🕵️‍♂️</strong>: 마피아 편입니다. 사립탐정 등 특수직업의 정보를 마피아에게 은밀하게 제보합니다.</p>
+                    <p><strong>마피아 🔴</strong>: 밤마다 시민을 습격합니다.</p>
+                    <p><strong>스파이 🕵️‍♂️</strong>: 마피아 진영의 조력자로 비밀리에 정보를 제공합니다.</p>
                 </div>
                 <div id="guide-tab-citizen" class="tab-panel" style="display: none;">
-                    <p><strong>경찰 👮</strong>: 밤마다 1명이 마피아 진영인지 아닌지 판별합니다.</p>
-                    <p><strong>의사 🩺</strong>: 밤마다 1명을 지정하여 마피아의 공격으로부터 보호합니다.</p>
-                    <p><strong>무당 🔮</strong>: 밤마다 1명의 정확한 직업을 확인합니다.</p>
-                    <p><strong>사립탐정 🔍</strong>: 밤에 조사한 타겟이 누구를 지목했는지 추적합니다.</p>
-                    <p><strong>군인 🪖</strong>: 마피아의 습격을 최초 1회 자동 방어합니다.</p>
-                    <p><strong>국회의원 ⚖️</strong>: 낮 투표 결과로 사형이 확정되더라도 죽지 않고 생존합니다.</p>
-                    <p><strong>테러리스트 💣</strong>: 낮 투표로 죽으면 길동무로 1명을 즉사시키고, 밤에 마피아에게 죽으면 마피아 1명을 반사 즉사시킵니다.</p>
-                    <p><strong>건달 🔨</strong>: 밤에 협박한 타겟 1명의 다음 날 낮 투표권을 완벽히 박탈합니다.</p>
-                    <p><strong>연인 💕</strong>: 서로의 정체를 알고 시작하며, 한 명이 죽으면 동반 사망합니다.</p>
-                    <p><strong>시민 ⚪</strong>: 특별한 능력은 없으나 밤에 의심메모를 남겨 여론 순위를 집계합니다.</p>
+                    <p><strong>경찰 👮</strong>: 밤마다 타겟이 마피아인지 조사합니다.</p>
+                    <p><strong>의사 🩺</strong>: 밤마다 1명을 마피아 습격으로부터 보호합니다.</p>
+                    <p><strong>무당 🔮</strong>: 밤에 죽은 유령이나 살아있는 사람의 정확한 정체를 투시합니다.</p>
+                    <p><strong>사립탐정 🔍</strong>: 지목한 대상의 밤 투표 동선을 추적합니다.</p>
+                    <p><strong>군인 🪖</strong>: 마피아 공격을 1회 방어합니다.</p>
+                    <p><strong>국회의원 ⚖️</strong>: 낮 투표 사형 판정 시 패시브 생존 능력을 가집니다.</p>
+                    <p><strong>테러리스트 💣</strong>: 처형 혹은 피습 시 대상을 길동무 삼아 자폭합니다.</p>
+                    <p><strong>건달 🔨</strong>: 밤에 협박해 다음 날 낮 상대의 투표권을 무효화합니다.</p>
+                    <p><strong>연인 💕</strong>: 서로의 정체를 아는 한 쌍입니다.</p>
+                    <p><strong>시민 ⚪</strong>: 특별한 능력은 없으나 집단 지성으로 마피아를 찾습니다.</p>
                 </div>
             </div>
         </div>
@@ -190,7 +200,6 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    
     <script src="firebase-config.js" defer></script>
     <script src="app.js" defer></script>
 </body>

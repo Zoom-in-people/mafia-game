@@ -7,7 +7,14 @@ let currentUser = null;
 let currentRole = "none";
 let currentStatus = "waiting";
 let currentQuiz = null;
-let adminRevealMap = {}; // 교사용 개별 직업 열람 체크용 맵 객체
+let adminRevealMap = {};
+
+// 최종 공개 화면용 캐릭터 이모지 아이콘 맵
+const roleIcons = {
+    mafia: "🦹", citizen: "🧑‍🤝‍🧑", spy: "🕵️", detective: "🔍",
+    mudang: "🔮", police: "👮", doctor: "🩺", soldier: "🪖",
+    assemblyman: "⚖️", terrorist: "💣", gangster: "🔨", lovers: "💕"
+};
 
 const quizBank = {
     "1-1": [
@@ -28,7 +35,7 @@ const quizBank = {
     ]
 };
 
-// 특정 유저 클릭 시 교사 화면에서 가림막 주소를 풀고 재렌더링
+// 교사 화면 전용: 개별 학생 직업 보안 해제 토글 함수
 window.toggleAdminRoleView = function(uid) {
     adminRevealMap[uid] = !adminRevealMap[uid];
     renderGameScreen();
@@ -112,11 +119,13 @@ function enterWaitingRoom() {
             isAlive: true,
             role: "none",
             nightTarget: "none",
-            suspect: "none"
+            suspect: "none",
+            dayVote: "none"
         });
     }
 
     getDb().ref('game/players').on('value', (snapshot) => {
+        if (!currentUser) return;
         const players = snapshot.val() || {};
         const playerListContainer = document.getElementById('player-list');
         if (!playerListContainer) return;
@@ -209,25 +218,33 @@ function handleStartGame() {
         if (total < 1) return alert('게임에 참여할 학생이 최소 1명 이상 필요합니다.');
 
         let rolePool = [];
+
         const mafiaCount = parseInt(document.getElementById('cfg-mafia').value) || 1;
-        for (let i = 0; i < mafiaCount; i++) rolePool.push("mafia");
+        for (let i = 0; i < mafiaCount; i++) {
+            rolePool.push("mafia");
+        }
 
         if (document.getElementById('cfg-lovers').checked) {
-            rolePool.push("lovers"); rolePool.push("lovers");
+            rolePool.push("lovers");
+            rolePool.push("lovers");
         }
 
         const singleRoles = ["spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster"];
         singleRoles.forEach(roleId => {
             const chk = document.getElementById(`cfg-${roleId}`);
-            if (chk && chk.checked) rolePool.push(roleId);
+            if (chk && chk.checked) {
+                rolePool.push(roleId);
+            }
         });
 
         if (rolePool.length > total) {
-            alert(`설정된 특수직업이 인원보다 많아 순서대로 배정됩니다.`);
+            alert(`[알림] 특수직업 정원이 많아 접속 인원에 맞춰 분배됩니다.`);
             rolePool = rolePool.slice(0, total);
         }
 
-        while (rolePool.length < total) rolePool.push("citizen");
+        while (rolePool.length < total) {
+            rolePool.push("citizen");
+        }
 
         for (let i = rolePool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -240,21 +257,22 @@ function handleStartGame() {
             updates[`game/players/${uid}/isAlive`] = true;
             updates[`game/players/${uid}/nightTarget`] = "none";
             updates[`game/players/${uid}/suspect`] = "none";
+            updates[`game/players/${uid}/dayVote`] = "none";
             updates[`game/players/${uid}/soldierLife`] = 2;
-            updates[`game/players/${uid}/personalLog`] = "none"; // 개인 로그 초기화
+            updates[`game/players/${uid}/personalLog`] = "none";
         });
 
         updates['game/status'] = 'day_discuss';
+        updates['game/vote_state'] = 'none';
+        updates['game/target_on_trial'] = 'none';
         updates['game/turn'] = 1;
         updates['game/morning_report'] = "첫 번째 아침이 밝았습니다. 자유롭게 토론하고 마피아를 추적하세요.";
         updates['game/quiz_score'] = 0;
         updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = "none";
-        
-        // [신규] 전체 사건 역사 기록 로그배열 선언 추가
-        updates['game/history_logs'] = ["제 1회차 게임이 시작되었습니다!"];
+        updates['game/history_logs'] = ["게임이 흥미진진하게 시작되었습니다!"];
 
-        adminRevealMap = {}; // 가림막 토글 풀 클리어
+        adminRevealMap = {}; 
         getDb().ref().update(updates);
     });
 }
@@ -314,6 +332,134 @@ function triggerGameViewTransition() {
     renderGameScreen();
 }
 
+// 교사용 제어 명령 1: 낮 자유 의심자 투표 개시
+function serverStartDayVote() {
+    getDb().ref('game/players').get().then(snap => {
+        const players = snap.val() || {};
+        const updates = {};
+        for (let id in players) {
+            updates[`game/players/${id}/dayVote`] = "none";
+        }
+        updates['game/vote_state'] = 'voting';
+        getDb().ref().update(updates);
+    });
+}
+
+// 교사용 제어 명령 2: 낮 투표 종료 후 최다 득표자 사형대 강제 소환
+function serverFinishDayVote() {
+    getDb().ref('game').get().then(snap => {
+        const gameData = snap.val() || {};
+        const players = gameData.players || {};
+        
+        let tally = {};
+        for (let id in players) {
+            let v = players[id].dayVote;
+            if (v && v !== "none" && players[v] && players[v].isAlive) {
+                tally[v] = (tally[v] || 0) + 1;
+            }
+        }
+
+        let max = 0; let candidate = "none";
+        for (let uid in tally) {
+            if (tally[uid] > max) { max = tally[uid]; candidate = uid; }
+        }
+
+        if (candidate === "none") {
+            alert("지목된 투표 내역이 없어 사형 대상자가 선출되지 않았습니다.");
+            return;
+        }
+
+        const updates = {};
+        updates['game/vote_state'] = 'execution_trial';
+        updates['game/target_on_trial'] = candidate;
+        
+        for (let id in players) {
+            updates[`game/players/${id}/trialDecision`] = "none";
+        }
+        getDb().ref().update(updates);
+    });
+}
+
+// 학생용: 사형대 진입 유저 찬반 투표 제출
+function submitExecutionVote(choice) {
+    if (!currentUser || currentUser.isAdmin) return;
+    getDb().ref(`game/players/${currentUser.id}/isAlive`).get().then(snap => {
+        if (!snap.val()) return alert("사망 유령 상태에서는 재판 표결권이 없습니다.");
+        getDb().ref(`game/players/${currentUser.id}/trialDecision`).set(choice).then(() => {
+            alert("찬반 판결 투표가 제출되었습니다.");
+        });
+    });
+}
+
+// 교사용 제어 명령 3: 처형 / 부활 찬반 최종 정산 확정
+function serverCalculateExecution() {
+    getDb().ref('game').get().then(snap => {
+        const gameData = snap.val() || {};
+        const players = gameData.players || {};
+        const targetUid = gameData.target_on_trial;
+        const targetUser = players[targetUid];
+        const historyLogs = gameData.history_logs || [];
+        const turn = gameData.turn;
+
+        if (targetUid === "none" || !targetUser) return alert("재판대에 올라간 대상이 없습니다.");
+
+        let exeCount = 0; let revCount = 0;
+        for (let id in players) {
+            if (players[id].trialDecision === 'execute') exeCount++;
+            if (players[id].trialDecision === 'revive') revCount++;
+        }
+
+        let reports = [];
+        let updates = {};
+
+        if (exeCount >= revCount) {
+            if (targetUser.role === 'assemblyman') {
+                reports.push(`[최종 재판] 처형 찬성이 많았으나, [${targetUser.nickname}](국회의원) 면책특권 발동으로 부활 생존했습니다!`);
+            } else if (targetUser.role === 'terrorist') {
+                updates[`game/players/${targetUid}/isAlive`] = false;
+                historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (테러리스트) 투표 처형`);
+                reports.push(`[최종 재판] 테러리스트 [${targetUser.nickname}]이 처형되며 동귀어진 폭탄을 터트렸습니다.`);
+                if (targetUser.nightTarget && targetUser.nightTarget !== "none" && players[targetUser.nightTarget]?.isAlive) {
+                    updates[`game/players/${targetUser.nightTarget}/isAlive`] = false;
+                    historyLogs.push(`제 ${turn}회차 낮: [${players[targetUser.nightTarget].nickname}] 자폭 동반 사망`);
+                    reports.push(`↳ 테러 자폭의 여파로 지목 타겟이었던 [${players[targetUser.nightTarget].nickname}] 학생도 사망했습니다.`);
+                }
+            } else {
+                updates[`game/players/${targetUid}/isAlive`] = false;
+                historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 학생 투표 처형`);
+                reports.push(`[최종 재판] 찬성 ${exeCount}표 / 반대 ${revCount}표로 [${targetUser.nickname}] 학생이 최종 처형되었습니다.`);
+            }
+        } else {
+            reports.push(`[최종 재판] 반대 ${revCount}표의 부활 표결이 많아 [${targetUser.nickname}] 학생의 처형이 철회 및 방면되었습니다.`);
+            historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 찬반 재판 부활 면제 성공`);
+        }
+
+        let aliveMafia = 0; let aliveCitizen = 0;
+        for (let id in players) {
+            let stillAlive = players[id].isAlive;
+            if (updates[`game/players/${id}/isAlive`] === false) stillAlive = false;
+            if (stillAlive) {
+                if (players[id].role === 'mafia') aliveMafia++;
+                else aliveCitizen++;
+            }
+        }
+
+        if (aliveMafia === 0) {
+            updates['game/status'] = 'game_over';
+            updates['game/winner'] = 'citizen_win';
+        } else if (aliveMafia >= aliveCitizen) {
+            updates['game/status'] = 'game_over';
+            updates['game/winner'] = 'mafia_win';
+        }
+
+        updates['game/vote_state'] = 'none';
+        updates['game/target_on_trial'] = 'none';
+        updates['game/morning_report'] = reports.join("\n");
+        updates['game/history_logs'] = historyLogs;
+        getDb().ref().update(updates);
+    });
+}
+
 function renderGameScreen() {
     if (!currentUser) return; 
     
@@ -321,11 +467,11 @@ function renderGameScreen() {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
         const status = gameData.status;
-        const turn = gameData.turn;
-        const mafiaTargets = gameData.mafia_targets || {};
+        const voteState = gameData.vote_state || 'none';
+        const targetOnTrial = gameData.target_on_trial || 'none';
         const report = gameData.morning_report || "";
-        const hint = gameData.current_hint || "없음";
         const historyLogs = gameData.history_logs || [];
+        const hint = gameData.current_hint || "없음";
 
         const msgBox = document.getElementById('status-message');
         const hintBox = document.getElementById('hint-display');
@@ -338,24 +484,47 @@ function renderGameScreen() {
             assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
         };
 
-        // [수정 사항 반영] 1. 상단 전체 역사 히스토리 실시간 텍스트 출력 파트
         const logContainer = document.getElementById('history-log-list');
         if (logContainer) {
             logContainer.innerHTML = historyLogs.slice().reverse().map(log => `<div>• ${log}</div>`).join("");
         }
 
-        // [수정 사항 반영] 2. 교사용 가림막 토글형 실시간 현황 모니터링 테이블 갱신
+        const stuVotePanel = document.getElementById('student-vote-panel');
+        const voteTitle = document.getElementById('vote-panel-title');
+        const voteDesc = document.getElementById('vote-panel-desc');
+        const voteAction = document.getElementById('vote-action-area');
+
+        if (status === 'day_discuss') {
+            if (voteState === 'voting') {
+                if (stuVotePanel) {
+                    stuVotePanel.style.display = 'block';
+                    voteTitle.innerText = "🗳️ 현재 낮 의심자 투표가 개시되었습니다!";
+                    voteDesc.innerText = "아래 28인 격자판에서 마피아로 의심되는 친구 카드를 터치 선택해 주세요.";
+                    voteAction.style.display = 'none';
+                }
+            } else if (voteState === 'execution_trial') {
+                if (stuVotePanel) {
+                    stuVotePanel.style.display = 'block';
+                    const accusedNick = players[targetOnTrial] ? players[targetOnTrial].nickname : "조회불가";
+                    voteTitle.innerText = `🚨 최다 투표 대상 사형대 진입: [${accusedNick}]`;
+                    voteDesc.innerText = "이 대상을 처형할지, 부활시킬지 찬반 투표를 진행합니다.";
+                    voteAction.style.display = myData.isAlive && !currentUser.isAdmin ? 'block' : 'none';
+                }
+            } else {
+                if (stuVotePanel) stuVotePanel.style.display = 'none';
+            }
+        } else {
+            if (stuVotePanel) stuVotePanel.style.display = 'none';
+        }
+
         if (currentUser.isAdmin) {
             const adminPanel = document.getElementById('admin-game-controls');
             if (adminPanel) adminPanel.style.display = 'block';
-
-            // 낮일때는 투표 섹션 열기, 밤일때는 닫기 분기
-            const voteSec = document.getElementById('admin-vote-section');
-            if (voteSec) voteSec.style.display = (status === 'day_discuss') ? 'block' : 'none';
-
-            const nextBtn = document.getElementById('next-stage-btn');
-            if (nextBtn) nextBtn.innerText = (status === 'day_discuss') ? "밤으로 단계 이동" : "아침 결과 처리 이동";
             
+            document.getElementById('admin-start-vote-btn').style.display = (status === 'day_discuss' && voteState === 'none') ? 'block' : 'none';
+            document.getElementById('admin-finish-vote-btn').style.display = (status === 'day_discuss' && voteState === 'voting') ? 'block' : 'none';
+            document.getElementById('admin-apply-execution-btn').style.display = (status === 'day_discuss' && voteState === 'execution_trial') ? 'block' : 'none';
+
             const monitor = document.getElementById('admin-secret-monitor');
             const tableBody = document.getElementById('admin-live-roles-table');
             if (monitor && tableBody) {
@@ -363,21 +532,15 @@ function renderGameScreen() {
                 let htmlRows = "";
                 for (let id in players) {
                     const p = players[id];
-                    const deadRowClass = p.isAlive ? "" : "class='monitor-dead'";
-                    
-                    // [핵심] 가림막 상태 검사 분기
                     const isRevealed = adminRevealMap[id];
-                    const roleText = isRevealed ? `<span style="color:#d32f2f;">${roleKorean[p.role]}</span>` : `<span style="color:#9e9e9e;">🙈 보안 가려짐</span>`;
-                    const btnLabel = isRevealed ? "가리기" : "직업보기";
-
                     htmlRows += `
-                        <tr ${deadRowClass}>
+                        <tr ${p.isAlive ? "" : "class='monitor-dead'"}>
                             <td><b>${p.isAlive ? "🟢 생존" : "💀 유령"}</b></td>
                             <td>${p.nickname}</td>
                             <td>
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    ${roleText}
-                                    <button class="secret-reveal-btn" onclick="toggleAdminRoleView('${id}')">${btnLabel}</button>
+                                    ${isRevealed ? `<span style='color:#c62828;'>${roleKorean[p.role]}</span>` : `<span style='color:#999;'>🙈 보안 가려짐</span>`}
+                                    <button class="secret-reveal-btn" onclick="toggleAdminRoleView('${id}')">${isRevealed ? '가리기' : '직업보기'}</button>
                                 </div>
                             </td>
                         </tr>
@@ -410,7 +573,7 @@ function renderGameScreen() {
             if (quizBox) quizBox.style.display = 'none';
         } else if (status === 'night_action') {
             if (msgBox) {
-                msgBox.innerText = "밤이 되었습니다. 각자의 능력을 사용하거나 의심 대상을 메모하세요.";
+                msgBox.innerText = "밤이 되었습니다. 고유 능력을 발동할 대상을 찝어 주세요.";
                 msgBox.className = "alert-box night";
             }
 
@@ -427,7 +590,6 @@ function renderGameScreen() {
         const turnDisp = document.getElementById('turn-display');
         if (turnDisp) turnDisp.innerText = `제 ${turn}회차 - ${status === 'day_discuss' ? '낮' : '밤'}`;
 
-        // [수정 사항 반영] 3. 학생 화면용 상단 고유 본인 닉네임과 직업을 순차 노출 배치함
         const myNickDisp = document.getElementById('my-nick-name');
         const myRoleNameDisp = document.getElementById('my-role-name');
         if (myNickDisp && myRoleNameDisp) {
@@ -441,15 +603,13 @@ function renderGameScreen() {
             }
         }
 
-        // [수정 사항 반영] 4. 특수 직업 및 경찰 등의 밤 개인 결과 기록장 상자 노출 조건식 빌드
-        const personalLogBox = document.getElementById('my-personal-log-box');
-        const personalLogList = document.getElementById('personal-log-list');
-        if (personalLogBox && personalLogList && !currentUser.isAdmin) {
+        const logBox = document.getElementById('my-personal-log-box');
+        if (logBox && !currentUser.isAdmin) {
             if (myData.personalLog && myData.personalLog !== "none") {
-                personalLogBox.style.display = "block";
-                personalLogList.innerHTML = myData.personalLog.split("\n").map(l => `<div>• ${l}</div>`).join("");
+                logBox.style.display = 'block';
+                document.getElementById('personal-log-list').innerHTML = myData.personalLog.split("\n").map(l => `<div>• ${l}</div>`).join("");
             } else {
-                personalLogBox.style.display = "none";
+                logBox.style.display = 'none';
             }
         }
 
@@ -472,37 +632,24 @@ function renderGameScreen() {
                     }
                 }
 
-                // [수정] 교사가 낮에 사형시킬 학생을 찝었을 때 하이라이트 되도록 스타일 공유 유연화
-                if (status === 'day_discuss' && currentUser.isAdmin && window.selectedExecutionUid === id) {
+                if (status === 'day_discuss' && voteState === 'voting' && myData.dayVote === id) {
                     cardClasses.push('my-selected');
                 }
 
-                if (status === 'night_action' && myData.isAlive) {
-                    if (currentRole === 'mafia') {
-                        let mCount = 0;
-                        for (let mUid in mafiaTargets) {
-                            if (mafiaTargets[mUid] === id) mCount++;
-                        }
-                        if (mCount > 0) badgeText = `<span class="badge">${mCount === 1 ? '목표설정' : '목표설정(' + mCount + ')'}</span>`;
-                    } else if (id === players[currentUser.id].nightTarget) {
-                        if (currentRole === 'gangster') badgeText = `<span class="badge blue">폭행!</span>`;
-                        else if (currentRole === 'police') badgeText = `<span class="badge green">조사중</span>`;
-                        else if (currentRole === 'detective') badgeText = `<span class="badge green">추적중</span>`;
-                        else if (currentRole === 'mudang') badgeText = `<span class="badge green">영혼기도</span>`;
-                        else if (currentRole === 'doctor') badgeText = `<span class="badge purple">수호중</span>`;
-                    } else if (currentRole === 'citizen' && id === players[currentUser.id].suspect) {
-                        badgeText = `<span class="badge green">의심됨</span>`;
-                    } else if (currentRole === 'lovers') {
-                        if (p.role === 'lovers') {
-                            badgeText = `<span class="badge pink">부부</span>`;
-                        } else if (id === players[currentUser.id].suspect) {
-                            badgeText = `<span class="badge green">의심됨</span>`;
-                        }
+                if (status === 'day_discuss' && voteState === 'voting') {
+                    if (myData.dayVote === id) badgeText = `<span class="badge blue">투표지정</span>`;
+                } else if (status === 'night_action' && myData.isAlive) {
+                    if (currentRole === 'mafia' && myData.nightTarget === id) badgeText = `<span class="badge">저격대상</span>`;
+                    else if (id === myData.nightTarget) badgeText = `<span class="badge green">타겟지정</span>`;
+                    else if (currentRole === 'citizen' && id === myData.suspect) badgeText = `<span class="badge green">의심됨</span>`;
+                    else if (currentRole === 'lovers') {
+                        if (p.role === 'lovers') badgeText = `<span class="badge pink">부부</span>`;
+                        else if (id === myData.suspect) badgeText = `<span class="badge green">의심됨</span>`;
                     }
                 }
 
                 gridContainer.innerHTML += `
-                    <div class="${cardClasses.join(' ')}" onclick="handleCardClick('${id}')">
+                    <div class="${cardClasses.join(' ')}" onclick="handleGridCardClick('${id}')">
                         <span>${p.nickname}</span>
                         ${badgeText}
                     </div>
@@ -512,104 +659,25 @@ function renderGameScreen() {
     });
 }
 
-// [수정] 카드 클릭 동작에 낮 투표 타겟 지정 기능 추가 바인딩
-function handleCardClick(targetUid) {
-    if (currentUser.isAdmin) {
-        if (currentStatus === 'day_discuss') {
-            // 교사가 낮에 격자판 학생을 찍으면 전역 타겟 변수에 담고 화면만 새로고침
-            window.selectedExecutionUid = targetUid;
-            renderGameScreen();
-        }
-        return;
-    }
-
-    if (currentStatus !== 'night_action') return;
-
-    getDb().ref(`game/players/${currentUser.id}`).get().then((mySnap) => {
-        const myData = mySnap.val();
-        if (!myData.isAlive) return alert('사망한 상태에서는 퀴즈 미션으로 기여해 주세요.');
-
-        if (currentRole === 'citizen' || currentRole === 'lovers') {
-            getDb().ref(`game/players/${currentUser.id}/suspect`).set(targetUid).then(renderGameScreen);
-        } else if (currentRole === 'mafia') {
-            getDb().ref(`game/mafia_targets/${currentUser.id}`).set(targetUid);
-            getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
-        } else {
-            getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
-        }
-    });
-}
-
-// [신규 기능] 낮 투표 확정 처형 및 역사 로그 이월 기록 연산기 (교사용)
-function handleExecuteDayVote() {
-    if (!currentUser || !currentUser.isAdmin || !window.selectedExecutionUid) {
-        return alert("격자판에서 처형할 학생을 먼저 터치하여 선택해 주세요.");
-    }
-
-    getDb().ref('game').get().then((snapshot) => {
-        const gameData = snapshot.val() || {};
+function handleGridCardClick(targetUid) {
+    if (currentUser.isAdmin) return;
+    
+    getDb().ref('game').get().then(snap => {
+        const gameData = snap.val() || {};
         const players = gameData.players || {};
-        const historyLogs = gameData.history_logs || [];
-        const turn = gameData.turn;
-        const targetUid = window.selectedExecutionUid;
-        const targetUser = players[targetUid];
+        const myData = players[currentUser.id];
 
-        if (!targetUser || !targetUser.isAlive) return alert("이미 사망했거나 존재하지 않는 유저입니다.");
+        if (!myData || !myData.isAlive) return;
 
-        let reports = [];
-        let deadList = [];
-
-        // 직업 성격별 낮 투표 면책특권 및 반사 피해 체인 연산
-        if (targetUser.role === 'assemblyman') {
-            reports.push(`[낮 투표 결과] 시민들이 [${targetUser.nickname}]을 사형대에 올렸으나, 국회의원 면책특권 발동으로 극적으로 살아남았습니다!`);
-        } else if (targetUser.role === 'terrorist') {
-            deadList.push(targetUid);
-            reports.push(`[낮 투표 결과] 테러리스트였던 [${targetUser.nickname}] 학생이 처형당하며 폭탄을 터트렸습니다!`);
-            
-            // 테러리스트가 밤에 누구를 찍었었다면 동반 자폭 즉사
-            if (targetUser.nightTarget && targetUser.nightTarget !== "none" && players[targetUser.nightTarget] && players[targetUser.nightTarget].isAlive) {
-                deadList.push(targetUser.nightTarget);
-                reports.push(`↳ 테러리스트의 자폭 여파로 동반 지목 대상이었던 [${players[targetUser.nightTarget].nickname}] 학생도 현장에서 사망했습니다.`);
-            }
-        } else {
-            deadList.push(targetUid);
-            reports.push(`[낮 투표 결과] 다수결 여론에 따라 [${targetUser.nickname}] 학생이 최종 처형되었습니다.`);
-        }
-
-        const updates = {};
-        deadList.forEach(dUid => {
-            updates[`game/players/${dUid}/isAlive`] = false;
-            historyLogs.push(`제 ${turn}회차 낮: [${players[dUid].nickname}] 투표 사망`);
-        });
-
-        // 처형 브리핑 기록 추가 및 로그 적재
-        reports.forEach(r => historyLogs.push(r));
-        updates['game/morning_report'] = reports.join("\n");
-        updates['game/history_logs'] = historyLogs;
-
-        // 게임 승리 조건 상시 체크 체인 재가동
-        let aliveMafiaCount = 0;
-        let aliveCitizenSideCount = 0;
-        for (let id in players) {
-            let isAlive = (deadList.includes(id)) ? false : players[id].isAlive;
-            if (isAlive) {
-                if (players[id].role === 'mafia') aliveMafiaCount++;
-                else aliveCitizenSideCount++;
+        if (gameData.status === 'day_discuss' && gameData.vote_state === 'voting') {
+            getDb().ref(`game/players/${currentUser.id}/dayVote`).set(targetUid).then(renderGameScreen);
+        } else if (gameData.status === 'night_action') {
+            if (currentRole === 'citizen' || currentRole === 'lovers') {
+                getDb().ref(`game/players/${currentUser.id}/suspect`).set(targetUid).then(renderGameScreen);
+            } else {
+                getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid).then(renderGameScreen);
             }
         }
-
-        if (aliveMafiaCount === 0) {
-            updates['game/status'] = 'game_over';
-            updates['game/winner'] = 'citizen_win';
-        } else if (aliveMafiaCount >= aliveCitizenSideCount) {
-            updates['game/status'] = 'game_over';
-            updates['game/winner'] = 'mafia_win';
-        }
-
-        window.selectedExecutionUid = null; // 타겟 초기화
-        getDb().ref().update(updates).then(() => {
-            alert("낮 투표 정산 및 처형 완료!");
-        });
     });
 }
 
@@ -642,52 +710,43 @@ function submitQuizAnswer(idx) {
 }
 
 function toggleSuspectRank() {
-    const rankListBox = document.getElementById('rank-list');
-    if (!rankListBox) return;
+    const rBox = document.getElementById('rank-list');
+    if (!rBox) return;
     
-    if (rankListBox.style.display === 'block') {
-        rankListBox.style.display = 'none';
+    if (rBox.style.display === 'block') {
+        rBox.style.display = 'none';
         return;
     }
 
-    getDb().ref('game/last_night_suspects').get().then((snapshot) => {
-        const suspectsData = snapshot.val();
-        rankListBox.innerHTML = '<h4>📢 지난 밤사이 생존자 의심 여론 통계</h4>';
-        
-        if (!suspectsData || suspectsData === "none") {
-            rankListBox.innerHTML += '<div>어젯밤 집계된 의심 투표 내역이 없습니다.</div>';
+    getDb().ref('game/last_night_suspects').get().then(snap => {
+        rBox.innerHTML = '<h4>📢 어젯밤 누적 의심 여론 기록</h4>';
+        const sData = snap.val();
+        if (!sData || sData === "none") {
+            rBox.innerHTML += '<div>통계가 없습니다.</div>';
         } else {
-            let sorted = Object.entries(suspectsData).sort((a, b) => b[1] - a[1]);
-            sorted.forEach(([nick, count], index) => {
-                rankListBox.innerHTML += `<div><b>${index + 1}위:</b> ${nick} (${count}표)</div>`;
+            Object.entries(sData).sort((a,b)=>b[1]-a[1]).forEach(([nick, count], idx) => {
+                rBox.innerHTML += `<div><b>${idx+1}위:</b> ${nick} (${count}표)</div>`;
             });
         }
-        rankListBox.style.display = 'block';
+        rBox.style.display = 'block';
     });
 }
 
 function handleNextStage() {
     if (!currentUser || !currentUser.isAdmin) return;
-    
-    getDb().ref('game/status').get().then((snapshot) => {
-        const currentStatus = snapshot.val();
-        
-        if (currentStatus === 'day_discuss') {
-            getDb().ref('game/mafia_targets').remove().then(() => {
-                getDb().ref('game/status').set('night_action');
-            });
-        } else if (currentStatus === 'night_action') {
+    getDb().ref('game/status').get().then(snap => {
+        if (snap.val() === 'day_discuss') {
+            getDb().ref('game/status').set('night_action');
+        } else {
             processNightActions();
         }
     });
 }
 
-// [핵심 엔진 대폭 수정] 특수 능력 및 경찰 조사 결과를 개인 로그 일지에 개별 각인 적재하는 파트 구축
 function processNightActions() {
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
-        const mafiaTargets = gameData.mafia_targets || {};
         const turn = gameData.turn;
         const quizScore = gameData.quiz_score || 0;
         const historyLogs = gameData.history_logs || [];
@@ -696,85 +755,53 @@ function processNightActions() {
         let deadList = [];
         const updates = {};
         
-        // 1. 마피아 다수결 타겟 계산
-        let mVotes = {};
-        for (let mId in mafiaTargets) {
-            let t = mafiaTargets[mId];
-            mVotes[t] = (mVotes[t] || 0) + 1;
-        }
-        let maxVote = 0;
-        let finalMafiaTarget = "none";
-        let targetsArray = [];
-        
-        for (let t in mVotes) {
-            if (mVotes[t] > maxVote) {
-                maxVote = mVotes[t];
-                targetsArray = [t];
-            } else if (mVotes[t] === maxVote) {
-                targetsArray.push(t);
-            }
-        }
-        if (targetsArray.length > 0) {
-            finalMafiaTarget = targetsArray[Math.floor(Math.random() * targetsArray.length)];
-        }
+        let mafiaTargets = {};
+        let protectedUid = "none";
 
-        let protectedUser = "none";
         for (let id in players) {
-            if (players[id].role === 'doctor' && players[id].isAlive) {
-                protectedUser = players[id].nightTarget;
-            }
+            const p = players[id];
+            if (!p.isAlive) continue;
+            if (p.role === 'mafia' && p.nightTarget && p.nightTarget !== 'none') mafiaTargets[p.nightTarget] = (mafiaTargets[p.nightTarget] || 0) + 1;
+            if (p.role === 'doctor' && p.nightTarget && p.nightTarget !== 'none') protectedUid = p.nightTarget;
         }
 
-        // 2. 특수 정보조사 직업들의 정밀 정보 가공 및 개인 일지 축적 연산구조 빌드
+        // 경찰 / 무당 / 탐정 결과 일지 적재
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
+            const t = players[p.nightTarget];
+            let line = "";
+            let currentLog = p.personalLog === "none" ? "" : (p.personalLog || "");
 
-            const tUser = players[p.nightTarget];
-            let logLine = "";
-            let currentLog = (p.personalLog && p.personalLog !== "none") ? p.personalLog : "";
+            if (p.role === 'police') line = `[${turn}일차 밤] [${t.nickname}] 조사 -> ${t.role === 'mafia' ? '마피아🔴' : '시민진영⚪'}`;
+            if (p.role === 'mudang') line = `[${turn}일차 밤] [${t.nickname}] 투시 -> 정확한 정체 [${t.role}]`;
+            if (p.role === 'detective') line = `[${turn}일차 밤] [${t.nickname}] 추적 -> 지목 타겟 [${players[t.nightTarget]?.nickname || '없음'}]`;
 
-            const roleKoreanClean = {
-                mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
-                mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
-                assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
-            };
-
-            if (p.role === 'police') {
-                // 경찰 능력 처리: 마피아인지 시민진영인지 판별 각인
-                const isMafiaSide = (tUser.role === 'mafia');
-                logLine = `[제 ${turn}회차 밤] ${tUser.nickname} 조사 결과 -> ${isMafiaSide ? '마피아 진영🔴' : '시민 진영⚪'}`;
-            } else if (p.role === 'mudang') {
-                // 무당 능력 처리: 정확한 본래 고유 직업 매핑 각인
-                logLine = `[제 ${turn}회차 밤] ${tUser.nickname} 조사 결과 -> 고유직업 [${roleKoreanClean[tUser.role]}]`;
-            } else if (p.role === 'detective') {
-                // 사립탐정 능력 처리: 조사 대상이 밤에 찍은 행동 타겟 경로 역추적 각인
-                const hasAction = (tUser.nightTarget && tUser.nightTarget !== "none" && players[tUser.nightTarget]);
-                logLine = `[제 ${turn}회차 밤] ${tUser.nickname} 동선 추적 -> ${hasAction ? '[' + players[tUser.nightTarget].nickname + '] 지목 포착🔍' : '행동 흔적 없음⚪'}`;
-            }
-
-            if (logLine !== "") {
-                updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${logLine}` : logLine;
-            }
+            if (line) updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${line}` : line;
         }
 
-        // 3. 마피아 살인 연산 체인
-        if (finalMafiaTarget !== "none" && finalMafiaTarget !== protectedUser) {
-            const targetUser = players[finalMafiaTarget];
+        let max = 0; let finalMTarget = "none";
+        for (let t in mafiaTargets) {
+            if (mafiaTargets[t] > max) { max = mafiaTargets[t]; finalMTarget = t; }
+        }
+
+        if (finalMTarget !== "none" && finalMTarget !== protectedUid) {
+            const targetUser = players[finalMTarget];
             
             if (targetUser.role === 'soldier' && targetUser.soldierLife > 1) {
-                updates[`game/players/${finalMafiaTarget}/soldierLife`] = 1;
-                reports.push(`군인인 누군가가 밤사이에 강력한 습격을 완벽히 저지했습니다.`);
+                updates[`game/players/${finalMTarget}/soldierLife`] = 1;
+                reports.push(`군인이 어젯밤 마피아의 기습을 강력한 방패로 막아냈습니다.`);
             } else if (targetUser.role === 'terrorist') {
-                deadList.push(finalMafiaTarget);
-                let mafiaIds = Object.keys(mafiaTargets);
+                deadList.push(finalMTarget);
+                let mafiaIds = [];
+                for (let mId in players) { if (players[mId].role === 'mafia' && players[mId].isAlive) mafiaIds.push(mId); }
                 if (mafiaIds.length > 0) {
                     let deadMafia = mafiaIds[Math.floor(Math.random() * mafiaIds.length)];
                     deadList.push(deadMafia);
                     reports.push(`테러리스트의 폭사 반격으로 마피아[${players[deadMafia].nickname}]와 테러리스트[${targetUser.nickname}]가 함께 사망했습니다.`);
                 }
             } else if (targetUser.role === 'lovers') {
-                deadList.push(finalMafiaTarget);
+                deadList.push(finalMTarget);
                 for (let id in players) {
                     if (players[id].role === 'lovers' && id !== finalMafiaTarget) {
                         deadList.push(id);
@@ -782,25 +809,15 @@ function processNightActions() {
                     }
                 }
             } else {
-                deadList.push(finalMafiaTarget);
+                deadList.push(finalMTarget);
                 reports.push(`밤사이에 발생한 참혹한 피습 사건으로 인해 [${targetUser.nickname}] 학생이 사망했습니다.`);
             }
-        } else if (finalMafiaTarget !== "none" && finalMafiaTarget === protectedUser) {
-            reports.push(`의사의 기적적인 긴급 수호로 밤사이에 아무도 희생되지 않았습니다.`);
+        } else if (finalMTarget !== "none" && finalMTarget === protectedUid) {
+            reports.push(`의사의 헌신적인 수호 덕분에 밤사이 아무도 다치지 않았습니다.`);
         } else {
-            reports.push(`밤사이에 아무런 소동도 감지되지 않았습니다.`);
+            reports.push(`밤사이에 평화로운 정적만이 흘렀습니다.`);
         }
 
-        // 4. 역사 로그 적재 및 유령 처리 가공
-        deadList.forEach(dUid => {
-            updates[`game/players/${dUid}/isAlive`] = false;
-            historyLogs.push(`제 ${turn}회차 밤: [${players[dUid].nickname}] 마피아 습격 사망`);
-        });
-        if (deadList.length === 0) {
-            historyLogs.push(`제 ${turn}회차 밤: 아무도 사망하지 않음`);
-        }
-
-        // 5. 시민 의심 메모 여론 취합 이월 저장
         let morningSuspectCounts = {};
         for (let id in players) {
             const sId = players[id].suspect;
@@ -824,31 +841,32 @@ function processNightActions() {
             }
         }
 
-        // 6. 게임 종료 검사 알고리즘
-        let aliveMafiaCount = 0;
-        let aliveCitizenSideCount = 0;
+        deadList.forEach(d => {
+            updates[`game/players/${d}/isAlive`] = false;
+            historyLogs.push(`제 ${turn}회차 밤: [${players[d].nickname}] 마피아 습격 사망`);
+        });
+        if (deadList.length === 0) historyLogs.push(`제 ${turn}회차 밤: 아무도 사망하지 않음`);
+
+        let mCount = 0; let cCount = 0;
         for (let id in players) {
-            let isAlive = (deadList.includes(id)) ? false : players[id].isAlive;
-            if (isAlive) {
-                if (players[id].role === 'mafia') aliveMafiaCount++;
-                else aliveCitizenSideCount++;
+            let state = players[id].isAlive;
+            if (deadList.includes(id)) state = false;
+            if (state) {
+                if (players[id].role === 'mafia') mCount++; else cCount++;
             }
         }
 
-        if (aliveMafiaCount === 0) {
-            updates['game/status'] = 'game_over';
-            updates['game/winner'] = 'citizen_win';
-        } else if (aliveMafiaCount >= aliveCitizenSideCount) {
-            updates['game/status'] = 'game_over';
-            updates['game/winner'] = 'mafia_win';
+        if (mCount === 0) {
+            updates['game/status'] = 'game_over'; updates['game/winner'] = 'citizen_win';
+        } else if (mCount >= cCount) {
+            updates['game/status'] = 'game_over'; updates['game/winner'] = 'mafia_win';
         } else {
             updates['game/status'] = 'day_discuss';
         }
 
-        // 초기화 처리 이월 세팅
         for (let id in players) {
             updates[`game/players/${id}/nightTarget`] = "none";
-            updates[`game/players/${id}/suspect`] = "none";
+            updates[`game/players/${id}/dayVote`] = "none";
         }
         updates['game/morning_report'] = reports.join("\n");
         updates['game/turn'] = turn + 1;
@@ -856,6 +874,7 @@ function processNightActions() {
         updates['game/current_hint'] = nextHint;
         updates['game/last_night_suspects'] = Object.keys(morningSuspectCounts).length > 0 ? morningSuspectCounts : "none";
         updates['game/history_logs'] = historyLogs;
+        updates['game/vote_state'] = 'none';
 
         getDb().ref().update(updates);
     });
@@ -869,29 +888,46 @@ function renderGameOverScreen() {
 
         const title = document.getElementById('winner-title');
         const report = document.getElementById('final-report');
-        const roleList = document.getElementById('final-role-list');
+        
+        if (winner === 'citizen_win') {
+            title.innerText = "🎉 시민 진영 승리! 🎉"; title.style.color = "#4CAF50";
+            report.innerText = "마피아 세력을 전원 무력화하여 교실의 정의를 되찾았습니다.";
+        } else {
+            title.innerText = "🔴 마피아 진영 승리! 🔴"; title.style.color = "#d32f2f";
+            report.innerText = "시민 사회가 교묘한 마피아 집단에 의해 완전히 점령되었습니다.";
+        }
 
-        if (title && report && roleList) {
-            if (winner === 'citizen_win') {
-                title.innerText = "🎉 시민 진영 승리! 🎉";
-                title.style.color = "#4CAF50";
-                report.innerText = "마피아 세력을 모두 찾아내어 학교의 평화를 지켰습니다!";
+        const roleKShort = {
+            mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
+            mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
+            assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
+        };
+
+        const mafiaContainer = document.getElementById('final-mafia-list');
+        const citizenContainer = document.getElementById('final-citizen-list');
+        
+        mafiaContainer.innerHTML = "";
+        citizenContainer.innerHTML = "";
+
+        for (let id in players) {
+            const p = players[id];
+            const icon = roleIcons[p.role] || "👤";
+            const roleName = roleKShort[p.role] || p.role;
+            const statusBadge = p.isAlive ? `<span class="char-status-badge alive">🟢 생존</span>` : `<span class="char-status-badge dead">💀 유령</span>`;
+
+            const cardHtml = `
+                <div class="role-character-card">
+                    <div class="char-icon">${icon}</div>
+                    <div class="char-nick">${p.nickname}</div>
+                    <div class="char-role">${roleName}</div>
+                    ${statusBadge}
+                </div>
+            `;
+
+            if (p.role === 'mafia' || p.role === 'spy') {
+                mafiaContainer.innerHTML += cardHtml;
             } else {
-                title.innerText = "🔴 마피아 진영 승리! 🔴";
-                title.style.color = "#d32f2f";
-                report.innerText = "마피아가 시민 진영을 완벽히 포섭하고 장악했습니다.";
-            }
-
-            const roleKorean = {
-                mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
-                mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
-                assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
-            };
-
-            roleList.innerHTML = '';
-            for (let id in players) {
-                const p = players[id];
-                roleList.innerHTML += `<div><strong>${p.nickname}</strong>: ${roleKorean[p.role] || p.role} (${p.isAlive ? '생존' : '사망'})</div>`;
+                citizenContainer.innerHTML += cardHtml;
             }
         }
     });
@@ -908,15 +944,18 @@ function handleResetToWaiting() {
             updates[`game/players/${id}/role`] = "none";
             updates[`game/players/${id}/isAlive`] = true;
             updates[`game/players/${id}/nightTarget`] = "none";
+            updates[`game/players/${id}/dayVote`] = "none";
             updates[`game/players/${id}/suspect`] = "none";
-            updates[`game/players/${id}/personalLog`] = "none"; // 개인 일지 리셋
+            updates[`game/players/${id}/personalLog`] = "none";
         }
 
         updates['game/status'] = 'waiting';
         updates['game/turn'] = 0;
+        updates['game/vote_state'] = 'none';
+        updates['game/target_on_trial'] = 'none';
         updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = "none";
-        updates['game/history_logs'] = ["이전 게임이 초기화되고 새로운 세션 대기가 설정되었습니다."];
+        updates['game/history_logs'] = ["새로운 대기실 세션이 시작되었습니다."];
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;
