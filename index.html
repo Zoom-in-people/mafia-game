@@ -81,6 +81,18 @@
                 <button id="next-stage-btn" onclick="handleNextStage()" style="background-color: #2196F3;">다음 단계로 (밤으로 이동)</button>
             </div>
         </div>
+
+        <div id="game-over-view" class="view" style="display: none; text-align: center;">
+            <h2 id="winner-title" style="font-size: 24px; margin-bottom: 10px;">🎉 게임 종료 🎉</h2>
+            <div id="final-report" class="alert-box" style="margin-bottom: 20px;">결과를 정산 중입니다...</div>
+            
+            <h3>직업 공개</h3>
+            <div id="final-role-list" class="rank-box" style="text-align: left; background: #fdfdfd;"></div>
+
+            <div id="admin-reset-controls" style="display: none; margin-top: 20px;">
+                <button onclick="handleResetToWaiting()" style="background-color: #e65100;">대기실로 리셋 (모든 직업 초기화)</button>
+            </div>
+        </div>
     </div>
 
     <div id="role-guide-modal" class="modal" style="display: none;">

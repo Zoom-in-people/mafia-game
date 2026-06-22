@@ -110,7 +110,7 @@ function enterWaitingRoom() {
     }
 
     getDb().ref('game/players').on('value', (snapshot) => {
-        if (!currentUser) return; // 전역 안전 장치 추가
+        if (!currentUser) return;
         const players = snapshot.val() || {};
         const playerListContainer = document.getElementById('player-list');
         if (!playerListContainer) return;
@@ -126,7 +126,6 @@ function enterWaitingRoom() {
         if (countDisp) countDisp.innerText = count;
     });
 
-    // 로그인 직후 강제로 상태 동기화 재트리거
     getDb().ref('game/status').get().then((snap) => {
         const s = snap.val();
         if (s && s !== 'waiting') {
@@ -244,27 +243,33 @@ function handleStartGame() {
     });
 }
 
-// [근본 에러 수정 완료] 로그인 전 비인증 유저 상태일 경우 렌더링 조작 및 상태 조회를 차단하는 1중 안전 가드 추가
 getDb().ref('game/status').on('value', (snapshot) => {
     currentStatus = snapshot.val();
-    if (!currentUser) return; // 로그인 상태가 아니면 리스너 신호를 가로막아 null 터짐을 원천 방지함
+    if (!currentUser) return; 
+
+    const waitingView = document.getElementById('waiting-view');
+    const gameView = document.getElementById('game-view');
+    const gameOverView = document.getElementById('game-over-view');
 
     if (currentStatus === 'waiting') {
-        // 대기 상태로 초기화됐을 경우 화면 처리구조
-        document.getElementById('waiting-view').style.display = 'block';
-        document.getElementById('game-view').style.display = 'none';
-        document.getElementById('game-over-view').style.display = 'none';
+        if (waitingView) waitingView.style.display = 'block';
+        if (gameView) gameView.style.display = 'none';
+        if (gameOverView) gameOverView.style.display = 'none';
         return;
     }
 
     triggerGameViewTransition();
 });
 
-// 화면 전환 통합 함수 격리 처리구조
+// [안전장치 대폭 보강] 엘리먼트 존재 여부를 철저하게 검사하여 스크립트가 멈추는 현상 전면 방어
 function triggerGameViewTransition() {
+    const gameView = document.getElementById('game-view');
+    const gameOverView = document.getElementById('game-over-view');
+    const waitingView = document.getElementById('waiting-view');
+
     if (currentStatus === 'game_over') {
-        document.getElementById('game-view').style.display = 'none';
-        document.getElementById('game-over-view').style.display = 'block';
+        if (gameView) gameView.style.display = 'none';
+        if (gameOverView) gameOverView.style.display = 'block';
         if (currentUser.isAdmin) {
             const resetPanel = document.getElementById('admin-reset-controls');
             if (resetPanel) resetPanel.style.display = 'block';
@@ -272,11 +277,11 @@ function triggerGameViewTransition() {
         renderGameOverScreen();
         return;
     } else {
-        document.getElementById('game-over-view').style.display = 'none';
+        if (gameOverView) gameOverView.style.display = 'none';
     }
 
-    document.getElementById('waiting-view').style.display = 'none';
-    document.getElementById('game-view').style.display = 'block';
+    if (waitingView) waitingView.style.display = 'none';
+    if (gameView) gameView.style.display = 'block';
 
     if (currentRole === 'mafia' && currentStatus === 'night_action') {
         getDb().ref('game/mafia_targets').on('value', () => { renderGameScreen(); });
@@ -288,7 +293,7 @@ function triggerGameViewTransition() {
 }
 
 function renderGameScreen() {
-    if (!currentUser) return; // 2중 안전 장치
+    if (!currentUser) return; 
     
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
@@ -408,7 +413,6 @@ function handleCardClick(targetUid) {
     if (currentStatus !== 'night_action' || currentUser.isAdmin) return;
 
     getDb().ref(`game/players/${targetUid}`).get().then((snapshot) => {
-        // 내 생존 여부 재검사 가드 처리구조
         return getDb().ref(`game/players/${currentUser.id}`).get();
     }).then((mySnap) => {
         const myData = mySnap.val();
