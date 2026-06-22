@@ -235,8 +235,30 @@ button:hover {
     background: white; width: 90%; max-width: 400px;
     padding: 20px; border-radius: 12px; position: relative;
 }
+
+/* [신규] 모달 가이드 상단 탭 레이아웃 스타일 */
+.tab-menu {
+    display: flex;
+    gap: 5px;
+    margin-top: 15px;
+}
+.tab-btn {
+    flex: 1;
+    padding: 8px;
+    margin: 0;
+    font-size: 13px;
+    background-color: #eee;
+    color: #333;
+    border: 1px solid #ccc;
+}
+.tab-btn.active {
+    background-color: #7b1fa2;
+    color: white;
+    border-color: #7b1fa2;
+}
+
 .modal-scroll-area {
-    max-height: 350px; overflow-y: auto; margin-top: 15px;
+    max-height: 320px; overflow-y: auto; margin-top: 10px;
     font-size: 14px; line-height: 1.6;
 }
 .modal-scroll-area p {

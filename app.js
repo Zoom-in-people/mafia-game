@@ -1,12 +1,5 @@
-// 전역에 등록된 Firebase 객체를 안전하게 받아오는 로직 교정
 const getDb = () => {
-    // 만약 window에 저장된 객체가 아직 준비 안 되었다면 브라우저의 기본 firebase 객체에서 가져옴
     if (window.sharedDatabase) return window.sharedDatabase;
-    
-    // 이 시점에도 초기화가 안 되어 있다면 수동으로 한 번 더 확인
-    if (firebase.apps.length === 0) {
-        console.warn("Firebase가 아직 초기화되지 않아 대기 후 재시도합니다.");
-    }
     return firebase.database();
 };
 
@@ -131,8 +124,31 @@ function enterWaitingRoom() {
     });
 }
 
-function openRoleGuide() { document.getElementById('role-guide-modal').style.display = 'flex'; }
+function openRoleGuide() { 
+    document.getElementById('role-guide-modal').style.display = 'flex'; 
+    switchGuideTab('mafia'); // 최초 오픈 시 마피아 탭 활성화
+}
 function closeRoleGuide() { document.getElementById('role-guide-modal').style.display = 'none'; }
+
+// [신규 기능] 가이드북 내부 팀별 탭 전환 스위치 로직
+function switchGuideTab(targetTeam) {
+    const mafiaBtn = document.getElementById('tab-mafia-btn');
+    const citizenBtn = document.getElementById('tab-citizen-btn');
+    const mafiaPanel = document.getElementById('guide-tab-mafia');
+    const citizenPanel = document.getElementById('guide-tab-citizen');
+
+    if (targetTeam === 'mafia') {
+        mafiaBtn.classList.add('active');
+        citizenBtn.classList.remove('active');
+        mafiaPanel.style.display = 'block';
+        citizenPanel.style.display = 'none';
+    } else {
+        citizenBtn.classList.add('active');
+        mafiaBtn.classList.remove('active');
+        citizenPanel.style.display = 'block';
+        mafiaPanel.style.display = 'none';
+    }
+}
 
 window.onclick = function(event) {
     const modal = document.getElementById('role-guide-modal');
@@ -233,8 +249,10 @@ getDb().ref('game/status').on('value', (snapshot) => {
     document.getElementById('waiting-view').style.display = 'none';
     document.getElementById('game-view').style.display = 'block';
 
+    // [에러 수정 완료] 오직 교사 스크린세션일때만 admin-game-controls 엘리먼트 속성을 조작하도록 제한 배치함!
     if (currentUser.isAdmin) {
-        document.getElementById('admin-game-controls').style.display = 'block';
+        const adminPanel = document.getElementById('admin-game-controls');
+        if (adminPanel) adminPanel.style.display = 'block';
     }
 
     if (currentRole === 'mafia' && currentStatus === 'night_action') {
@@ -272,11 +290,17 @@ function renderGameScreen() {
             msgBox.innerText = report;
             msgBox.className = "alert-box";
             quizBox.style.display = 'none';
-            if (currentUser.isAdmin) document.getElementById('next-stage-btn').innerText = "다음 단계로 (밤으로 이동)";
+            if (currentUser.isAdmin) {
+                const nextBtn = document.getElementById('next-stage-btn');
+                if (nextBtn) nextBtn.innerText = "다음 단계로 (밤으로 이동)";
+            }
         } else if (status === 'night_action') {
             msgBox.innerText = "밤이 되었습니다. 각자의 능력을 사용하거나 의심 대상을 메모하세요.";
             msgBox.className = "alert-box night";
-            if (currentUser.isAdmin) document.getElementById('next-stage-btn').innerText = "다음 단계로 (아침 결과 처리)";
+            if (currentUser.isAdmin) {
+                const nextBtn = document.getElementById('next-stage-btn');
+                if (nextBtn) nextBtn.innerText = "다음 단계로 (아침 결과 처리)";
+            }
 
             if (!currentUser.isAdmin && !myData.isAlive) {
                 quizBox.style.display = 'block';
