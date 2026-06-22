@@ -1,7 +1,6 @@
-// 전역 변수 바인딩 검증 및 Firebase RTDB 안전성 확보
+// 전역 상자에 로드된 데이터베이스 공유 객체 안전하게 상속받기
 const getDb = () => {
-    if (typeof database !== 'undefined') return database;
-    if (typeof window.database !== 'undefined') return window.database;
+    if (window.sharedDatabase) return window.sharedDatabase;
     return firebase.database();
 };
 
@@ -47,7 +46,6 @@ function toggleAuthMode(mode) {
     }
 }
 
-// [오류 수정 완료] 전역 변수 참조 안전 함수(getDb)로 교체하여 Uncaught ReferenceError 해결
 function handleSignup() {
     const id = document.getElementById('signup-id').value.trim();
     const pw = document.getElementById('signup-pw').value.trim();
@@ -112,7 +110,6 @@ function enterWaitingRoom() {
         });
     }
 
-    // [수정 사항 반영] 학생들이 서로 확인할 수 있도록 실시간으로 대기실 화면 명단 동기화
     getDb().ref('game/players').on('value', (snapshot) => {
         const players = snapshot.val() || {};
         const playerListContainer = document.getElementById('player-list');
@@ -124,14 +121,19 @@ function enterWaitingRoom() {
             const player = players[id];
             playerListContainer.innerHTML += `<div class="player-card">${player.nickname}</div>`;
         }
-        // (0/28) 텍스트 규격을 제거하고 요청대로 현재 유저 인원 카운트 숫자만 표기
         document.getElementById('player-count').innerText = count;
     });
 }
 
-// [신규 기능] 가이드 모달 팝업 컨트롤러
 function openRoleGuide() { document.getElementById('role-guide-modal').style.display = 'flex'; }
 function closeRoleGuide() { document.getElementById('role-guide-modal').style.display = 'none'; }
+
+window.onclick = function(event) {
+    const modal = document.getElementById('role-guide-modal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
 
 function changeQuizLevel(level) {
     if (currentUser && currentUser.isAdmin) {
@@ -157,7 +159,6 @@ function clearSession() {
     location.reload(); 
 }
 
-// [대폭 수정] 인원수(20명, 26명, 28명) 가변 범위 대응형 자동 직업 밸런싱 알고리즘
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
@@ -170,29 +171,21 @@ function handleStartGame() {
 
         let rolePool = [];
 
-        // 인원 비율에 근거한 동적 밸런스 분배 로직 체인
         if (total >= 26) {
-            // 26인~28인 대규모 밸런스 (마피아 4인 체제)
             rolePool = ["mafia", "mafia", "mafia", "mafia", "spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster", "lovers", "lovers"];
         } else if (total >= 22) {
-            // 22인~25인 중규모 밸런스 (마피아 3인 체제, 국회의원/연인 유지)
             rolePool = ["mafia", "mafia", "mafia", "spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "lovers", "lovers"];
         } else {
-            // 20인 이하 컴팩트 밸런스 (마피아 3인 조밀 구성, 스파이/연인 축소 대응)
             rolePool = ["mafia", "mafia", "mafia", "detective", "mudang", "police", "doctor", "soldier", "terrorist", "gangster"];
         }
 
-        // 인원 자리가 남는 경우는 전원 일반 시민으로 채우기
         while (rolePool.length < total) {
             rolePool.push("citizen");
         }
-
-        // 혹시 등록 유저보다 세팅 직업 풀이 큰 초소형 예외 케이스 슬라이싱 조율
         if (rolePool.length > total) {
             rolePool = rolePool.slice(0, total);
         }
 
-        // 피셔 예이츠 무작위 완전 셔플
         for (let i = rolePool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];

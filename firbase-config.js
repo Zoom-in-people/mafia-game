@@ -9,6 +9,10 @@ const firebaseConfig = {
   appId: "1:211882425801:web:69b95a32239c16d2f2fc18"
 };
 
-// Firebase 초기화
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+// 전역 초기화 실행
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+// 전역 window 상자에 데이터베이스 객체를 담아 app.js에 안전하게 넘깁니다.
+window.sharedDatabase = firebase.database();

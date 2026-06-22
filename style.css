@@ -74,7 +74,6 @@ button:hover {
     margin-left: 5px;
 }
 
-/* 대기실 실시간 학생 명단 보드판 스타일 */
 #player-list {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -225,7 +224,6 @@ button:hover {
     text-align: left;
 }
 
-/* [신규] 직업 설명 모달 클래스 스타일 */
 .modal {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
