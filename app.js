@@ -9,6 +9,7 @@ let currentStatus = "waiting";
 let currentQuiz = null;
 let adminRevealMap = {};
 
+// 최종 공개 화면용 캐릭터 이모지 아이콘 맵
 const roleIcons = {
     mafia: "🦹", citizen: "🧑‍🤝‍🧑", spy: "🕵️", detective: "🔍",
     mudang: "🔮", police: "👮", doctor: "🩺", soldier: "🪖",
@@ -34,6 +35,7 @@ const quizBank = {
     ]
 };
 
+// 교사 화면 전용: 개별 학생 직업 보안 해제 토글 함수
 window.toggleAdminRoleView = function(uid) {
     adminRevealMap[uid] = !adminRevealMap[uid];
     renderGameScreen();
@@ -123,6 +125,7 @@ function enterWaitingRoom() {
     }
 
     getDb().ref('game/players').on('value', (snapshot) => {
+        if (!currentUser) return;
         const players = snapshot.val() || {};
         const playerListContainer = document.getElementById('player-list');
         if (!playerListContainer) return;
@@ -630,7 +633,6 @@ function renderGameScreen() {
                     cardClasses.push('my-selected');
                 }
 
-                // [버그 수정 반영] 학생들의 명단 닉네임이 정상 매핑되도록 p.nickname 구문 고정 정비
                 if (status === 'day_discuss' && voteState === 'voting') {
                     if (myData.dayVote === id) badgeText = `<span class="badge blue">투표지정</span>`;
                 } else if (status === 'night_action' && myData.isAlive) {
@@ -693,7 +695,6 @@ function generateGhostQuiz(level) {
     }
 }
 
-// [정산 연산 디버깅] 유령 퀴즈 오동작 누락 및 변수 turn 버그 완전 박멸 
 function submitQuizAnswer(idx) {
     if (idx === currentQuiz.c) {
         alert('정답입니다! 단서 유령 에너지가 1 쌓였습니다.');
@@ -739,12 +740,11 @@ function handleNextStage() {
     });
 }
 
-// [디버깅 최종 완결] processNightActions의 내부 turn 참조 선언 규칙을 격리 교정함
 function processNightActions() {
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
-        const currentTurnVal = gameData.turn || 1; // turn 인지 안전 정의 교정
+        const currentTurnVal = gameData.turn || 1; 
         const quizScore = gameData.quiz_score || 0;
         const historyLogs = gameData.history_logs || [];
 
@@ -762,6 +762,7 @@ function processNightActions() {
             if (p.role === 'doctor' && p.nightTarget && p.nightTarget !== 'none') protectedUid = p.nightTarget;
         }
 
+        // [버그 수정 완료] 기존 turn을 전역 및 올바른 지역변수명인 currentTurnVal로 전면 교정 매핑
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
@@ -867,7 +868,7 @@ function processNightActions() {
         updates['game/morning_report'] = reports.join("\n");
         updates['game/turn'] = currentTurnVal + 1;
         updates['game/quiz_score'] = 0;
-        updates['game/current_hint'] = nextHint;
+        updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = Object.keys(morningSuspectCounts).length > 0 ? morningSuspectCounts : "none";
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
