@@ -1,18 +1,29 @@
 /**
  * 2. auth.js
- * 로그인, 회원가입, 세션 보전 및 대기실(인원 리스너 / 강제 추방 / 나가기) 관리
+ * 로그인, 회원가입, 세션 유지 및 대기실 실시간 제어 (재접속 최적화)
  */
 
-// 페이지 로드 시 기존 로그인 세션이 있다면 자동 대기실 진입
 window.onload = function() {
     const savedUser = localStorage.getItem('mafia_session');
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
-        enterWaitingRoom();
+        
+        // 자동 로그인 시에도 게임 진행 상태 및 기존 참여 여부 통합 검증
+        getDb().ref('game').get().then((snap) => {
+            const gameData = snap.val() || {};
+            const status = gameData.status || "waiting";
+            const players = gameData.players || {};
+            
+            if (status !== "waiting" && !currentUser.isAdmin && !players[currentUser.id]) {
+                alert("이미 게임이 진행 중입니다. 다음 판을 기다려주세요.");
+                clearSession();
+            } else {
+                enterWaitingRoom();
+            }
+        });
     }
 };
 
-// 로그인 <-> 회원가입 UI 화면 전환
 function toggleAuthMode(mode) {
     if (mode === 'signup') {
         document.getElementById('login-section').style.display = 'none';
@@ -23,7 +34,6 @@ function toggleAuthMode(mode) {
     }
 }
 
-// 닉네임 중복을 원천 차단하는 회원가입 프로세스
 function handleSignup() {
     const id = document.getElementById('signup-id').value.trim();
     const pw = document.getElementById('signup-pw').value.trim();
@@ -55,7 +65,6 @@ function handleSignup() {
     }).catch(err => alert(err.message));
 }
 
-// 로그인 처리 및 교사 마스터 권한 부여
 function handleLogin() {
     const id = document.getElementById('login-id').value.trim();
     const pw = document.getElementById('login-pw').value.trim();
@@ -67,18 +76,30 @@ function handleLogin() {
         return;
     }
 
-    getDb().ref(`accounts/${id}`).get().then((snapshot) => {
-        if (snapshot.exists() && snapshot.val().pw === pw) {
-            currentUser = { id: id, nick: snapshot.val().nick, isAdmin: false };
-            localStorage.setItem('mafia_session', JSON.stringify(currentUser));
-            enterWaitingRoom();
-        } else {
-            alert('아이디 또는 비밀번호를 다시 확인해 주세요.');
+    // 로그인 시점에 진행 중인 게임 데이터 사전 대조
+    getDb().ref('game').get().then((gameSnap) => {
+        const gameData = gameSnap.val() || {};
+        const currentStatusVal = gameData.status || "waiting";
+        const players = gameData.players || {};
+
+        // 게임이 시작되었는데 플레이어 명단에 없는 유저가 로그인을 시도할 때만 차단
+        if (currentStatusVal !== "waiting" && !players[id]) {
+            alert("이미 게임이 시작되어 진입할 수 없습니다. 관전자로 대기하거나 다음 판에 참여해 주세요.");
+            return;
         }
+
+        getDb().ref(`accounts/${id}`).get().then((snapshot) => {
+            if (snapshot.exists() && snapshot.val().pw === pw) {
+                currentUser = { id: id, nick: snapshot.val().nick, isAdmin: false };
+                localStorage.setItem('mafia_session', JSON.stringify(currentUser));
+                enterWaitingRoom();
+            } else {
+                alert('아이디 또는 비밀번호를 다시 확인해 주세요.');
+            }
+        });
     });
 }
 
-// 대기실 진입 및 실시간 학생 명단 갱신 리스너
 function enterWaitingRoom() {
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('waiting-view').style.display = 'block';
@@ -88,24 +109,28 @@ function enterWaitingRoom() {
         document.getElementById('admin-controls').style.display = 'block';
     }
 
-    if (!currentUser.isAdmin) {
-        getDb().ref(`game/players/${currentUser.id}`).set({
-            nickname: currentUser.nick,
-            isAlive: true,
-            role: "none",
-            nightTarget: "none",
-            suspect: "none",
-            dayVote: "none",
-            deathReason: "none"
-        });
-    }
+    // [★버그 박멸 핵심] 대기방 상태일 때만 유저 노드를 새로 만듭니다. (진행 중 재접속 시 기존 데이터 보존)
+    getDb().ref('game/status').get().then((statusSnap) => {
+        const currentStat = statusSnap.val() || "waiting";
+        if (currentStat === "waiting" && !currentUser.isAdmin) {
+            getDb().ref(`game/players/${currentUser.id}`).set({
+                nickname: currentUser.nick,
+                isAlive: true,
+                role: "none",
+                nightTarget: "none",
+                suspect: "none",
+                dayVote: "none",
+                deathReason: "none"
+            });
+        }
+    });
 
-    // 실시간 접속 인원 및 명단 동적 동기화 리스너
+    // 실시간 명단 갱신
     getDb().ref('game/players').on('value', (snapshot) => {
         if (!currentUser) return;
         const players = snapshot.val() || {};
         
-        if (!currentUser.isAdmin && !players[currentUser.id]) {
+        if (!currentUser.isAdmin && !players[currentUser.id] && currentStatus === 'waiting') {
             alert("교사에 의해 대기실에서 추방되었습니다.");
             clearSession();
             return;
@@ -116,21 +141,19 @@ function enterWaitingRoom() {
         
         playerListContainer.innerHTML = '';
         let count = 0;
-        
         for (let id in players) {
             count++;
             const player = players[id];
-            const kickElement = currentUser.isAdmin ? `<button class="kick-btn" onclick="serverKickPlayer('${id}')" style="margin-left: 10px; padding: 2px 8px; background-color: #c62828; font-size: 11px; width: auto;">추방</button>` : "";
-            playerListContainer.innerHTML += `<div class="player-card" style="padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;"><span>${player.nickname}</span>${kickElement}</div>`;
+            const kickElement = currentUser.isAdmin ? `<button class="kick-btn" onclick="serverKickPlayer('${id}')">추방</button>` : "";
+            playerListContainer.innerHTML += `<div class="player-card"><span>${player.nickname}</span>${kickElement}</div>`;
         }
-        
         const countDisp = document.getElementById('player-count');
         if (countDisp) countDisp.innerText = count;
     });
 
-    // [★버그 즉시 해결 핵심 코드] .get()이 아닌 실시간 감시 리스너(.on)로 전환배치하여 교사가 시작을 누르는 순간 전원 자동 강제 화면이동 연출
+    // 글로벌 상태 전이 실시간 감시 파이프라인
     getDb().ref('game/status').on('value', (snapshot) => {
-        currentStatus = snapshot.val();
+        currentStatus = snapshot.val() || 'waiting';
         if (currentStatus && currentStatus !== 'waiting') {
             if (typeof triggerGameViewTransition === 'function') {
                 triggerGameViewTransition();
@@ -139,17 +162,13 @@ function enterWaitingRoom() {
     });
 }
 
-// 교사용 학생 강제 추방 액션 함수
 window.serverKickPlayer = function(uid) {
     if (!currentUser || !currentUser.isAdmin) return;
     if (confirm("해당 학생을 대기실에서 영구 추방하시겠습니까?")) {
-        getDb().ref(`game/players/${uid}`).remove().then(() => {
-            alert("추방 처리가 완료되었습니다.");
-        });
+        getDb().ref(`game/players/${uid}`).remove();
     }
 };
 
-// 방 나가기 버튼 공통 처리
 function handleExit() {
     if (!currentUser) return;
     const confirmExit = confirm("정말 이 방에서 나가시겠습니까?");
