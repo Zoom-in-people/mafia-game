@@ -11,38 +11,40 @@ body {
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
-    padding: 20px;
+    padding: 10px; /* 여백 축소로 모바일 체감 향상 */
 }
 
+/* [수정 반영] 학생 및 교사 화면의 크기를 기기 화면 폭에 맞춰 100% 반응형 유연 확장 */
 #app {
-    width: 95%;
-    max-width: 1200px;
+    width: 100%;
+    width: -webkit-fill-available;
     background: white;
-    padding: 25px;
+    padding: 4vw; /* 반응형 가변 패딩 */
     border-radius: 12px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    margin-top: 10px;
+    margin-top: 5px;
 }
 
 #global-exit-btn {
     position: fixed;
-    top: 15px;
-    right: 15px;
+    top: 10px;
+    right: 10px;
     z-index: 9999;
     width: auto;
-    padding: 8px 16px;
+    padding: 6px 12px;
     background-color: #ff4d4d;
     color: white;
     border: none;
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
+    font-size: 13px;
 }
 
 input, select, button {
     width: 100%;
     padding: 12px;
-    margin: 8px 0;
+    margin: 6px 0;
     border-radius: 6px;
     border: 1px solid #ccc;
     font-size: 16px;
@@ -74,12 +76,12 @@ button:hover { opacity: 0.9; }
 
 #player-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 12px;
-    margin-top: 20px;
-    max-height: 300px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    margin-top: 15px;
+    max-height: 250px;
     overflow-y: auto;
-    padding: 15px;
+    padding: 10px;
     background: #fafafa;
     border: 1px dashed #bbb;
     border-radius: 8px;
@@ -88,11 +90,11 @@ button:hover { opacity: 0.9; }
 .player-card {
     background: #eef2f3;
     border-left: 4px solid #4CAF50;
-    padding: 12px;
+    padding: 10px;
     text-align: center;
     border-radius: 4px;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .alert-box {
@@ -104,22 +106,23 @@ button:hover { opacity: 0.9; }
     font-weight: bold;
     margin: 10px 0;
     white-space: pre-line;
+    font-size: 14px;
 }
 .alert-box.night {
     background-color: #1a237e;
     color: #ffffff;
 }
 
-/* 실시간 대화식 실시간 낮 투표 상황 알림 박스 */
 .vote-alert-box {
     background-color: #fff3e0;
     border: 2px solid #ff9800;
     color: #e65100;
-    padding: 15px;
+    padding: 12px;
     text-align: center;
     border-radius: 8px;
     font-weight: bold;
-    margin: 12px 0;
+    margin: 10px 0;
+    font-size: 14px;
 }
 
 .hint-box {
@@ -128,7 +131,7 @@ button:hover { opacity: 0.9; }
     padding: 10px;
     border-left: 5px solid #ff9800;
     margin-bottom: 10px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     border-radius: 4px;
 }
@@ -136,21 +139,21 @@ button:hover { opacity: 0.9; }
 .history-container {
     background: #f1f1f1;
     border: 1px solid #dcdcdc;
-    padding: 12px;
+    padding: 10px;
     border-radius: 8px;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
     text-align: left;
 }
 .history-container h4 {
-    margin: 0 0 6px 0;
+    margin: 0 0 4px 0;
     color: #424242;
-    font-size: 14px;
+    font-size: 13px;
 }
 #history-log-list {
-    font-size: 13px;
-    max-height: 80px;
+    font-size: 12px;
+    max-height: 75px;
     overflow-y: auto;
-    line-height: 1.5;
+    line-height: 1.4;
     color: #555;
 }
 
@@ -160,16 +163,16 @@ button:hover { opacity: 0.9; }
     text-align: center;
     padding: 12px;
     border-radius: 6px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 #player-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 10px;
-    margin-top: 15px;
+    grid-template-columns: repeat(4, 1fr); /* 4열 엄격 고정 구조로 스마트폰 맞춤형 */
+    gap: 6px;
+    margin-top: 12px;
 }
 
 .grid-card {
@@ -181,21 +184,22 @@ button:hover { opacity: 0.9; }
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: bold;
     cursor: pointer;
     position: relative;
     transition: all 0.2s;
-    padding: 5px;
+    padding: 4px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
+
 .grid-card span.badge {
-    font-size: 11px;
+    font-size: 9px;
     color: white;
-    margin-top: 6px;
+    margin-top: 4px;
     font-weight: bold;
     background: #ff5722;
-    padding: 2px 6px;
+    padding: 1px 4px;
     border-radius: 4px;
 }
 .grid-card span.badge.green { background: #4caf50; }
@@ -206,7 +210,7 @@ button:hover { opacity: 0.9; }
 .grid-card.my-selected {
     border-color: #ff9800;
     background-color: #fff8e1;
-    box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);
+    box-shadow: 0 0 6px rgba(255, 152, 0, 0.5);
 }
 .grid-card.dead {
     background: #ffebee;
@@ -216,7 +220,7 @@ button:hover { opacity: 0.9; }
 .grid-card.dead::after {
     content: "X";
     position: absolute;
-    font-size: 55px;
+    font-size: 45px;
     color: rgba(239, 83, 80, 0.4);
     font-weight: 900;
 }
@@ -224,14 +228,14 @@ button:hover { opacity: 0.9; }
 .rank-box {
     background: #f9f9f9;
     border: 1px solid #ddd;
-    padding: 12px;
+    padding: 10px;
     margin: 10px 0;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .table-container {
-    max-height: 200px;
+    max-height: 180px;
     overflow-y: auto;
     border: 1px solid #e0e0e0;
     border-radius: 4px;
@@ -241,10 +245,10 @@ button:hover { opacity: 0.9; }
     width: 100%;
     border-collapse: collapse;
     text-align: left;
-    font-size: 13px;
+    font-size: 12px;
 }
 .monitor-table th, .monitor-table td {
-    padding: 8px 12px;
+    padding: 6px 10px;
     border-bottom: 1px solid #eee;
 }
 .monitor-table th {
@@ -260,8 +264,8 @@ button:hover { opacity: 0.9; }
 }
 
 .secret-reveal-btn {
-    padding: 3px 8px;
-    font-size: 11px;
+    padding: 2px 6px;
+    font-size: 10px;
     background-color: #757575;
     color: white;
     border: none;
@@ -271,85 +275,44 @@ button:hover { opacity: 0.9; }
     margin: 0;
 }
 
-/* [신규 디자인] 게임 결과 화면용 진영 레이아웃 시스템 */
 .faction-container {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    margin-top: 15px;
+    gap: 15px;
+    margin-top: 12px;
 }
 .faction-box {
-    padding: 18px;
+    padding: 12px;
     border-radius: 10px;
     border: 2px solid #ccc;
 }
-.mafia-faction {
-    background-color: #fff5f5;
-    border-color: #ffcdd2;
-}
-.mafia-faction h4 {
-    color: #c62828;
-    margin-bottom: 12px;
-    font-size: 16px;
-    border-bottom: 2px solid #ef5350;
-    padding-bottom: 5px;
-}
-.citizen-faction {
-    background-color: #f7f9fa;
-    border-color: #cfd8dc;
-}
-.citizen-faction h4 {
-    color: #37474f;
-    margin-bottom: 12px;
-    font-size: 16px;
-    border-bottom: 2px solid #78909c;
-    padding-bottom: 5px;
-}
+.mafia-faction { background-color: #fff5f5; border-color: #ffcdd2; }
+.mafia-faction h4 { color: #c62828; margin-bottom: 10px; font-size: 15px; border-bottom: 2px solid #ef5350; padding-bottom: 4px; text-align: left; }
+.citizen-faction { background-color: #f7f9fa; border-color: #cfd8dc; }
+.citizen-faction h4 { color: #37474f; margin-bottom: 10px; font-size: 15px; border-bottom: 2px solid #78909c; padding-bottom: 4px; text-align: left; }
 
-/* 진영 내 플레이어 카드 그리드 */
 .faction-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr); /* 2열 균등 배치 모바일 대응 */
+    gap: 8px;
 }
 
-/* 아기자기한 캐릭터 카드 스타일 */
 .role-character-card {
     background: white;
     border: 1px solid #ddd;
     border-radius: 8px;
-    padding: 12px;
+    padding: 10px;
     text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 3px;
 }
-.role-character-card .char-icon {
-    font-size: 32px;
-    margin-bottom: 2px;
-}
-.role-character-card .char-nick {
-    font-size: 14px;
-    font-weight: bold;
-    color: #333;
-}
-.role-character-card .char-role {
-    font-size: 12px;
-    color: #666;
-    background: #f1f1f1;
-    padding: 1px 6px;
-    border-radius: 4px;
-}
-.role-character-card .char-status-badge {
-    font-size: 11px;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 20px;
-    margin-top: 4px;
-    color: white;
-}
+.role-character-card .char-icon { font-size: 26px; }
+.role-character-card .char-nick { font-size: 13px; font-weight: bold; color: #333; }
+.role-character-card .char-role { font-size: 11px; color: #666; background: #f1f1f1; padding: 1px 4px; border-radius: 4px; }
+.role-character-card .char-status-badge { font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 20px; margin-top: 2px; color: white; }
 .role-character-card .char-status-badge.alive { background-color: #4caf50; }
 .role-character-card .char-status-badge.dead { background-color: #e53935; }
 
@@ -358,13 +321,13 @@ button:hover { opacity: 0.9; }
     border: 1px solid #ce93d8;
     padding: 12px;
     border-radius: 8px;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
-.quiz-container h4 { color: #4a148c; margin-bottom: 8px; }
-#quiz-question { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
+.quiz-container h4 { color: #4a148c; margin-bottom: 6px; font-size: 14px; }
+#quiz-question { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
 .quiz-opt-btn {
     background: #ffffff; color: #333; border: 1px solid #ab47bc;
-    padding: 8px; margin: 4px 0; font-size: 13px; text-align: left;
+    padding: 8px; margin: 4px 0; font-size: 12px; text-align: left;
 }
 
 .modal {
@@ -373,16 +336,13 @@ button:hover { opacity: 0.9; }
     display: flex; justify-content: center; align-items: center; z-index: 10000;
 }
 .modal-content {
-    background: white; width: 90%; max-width: 450px;
-    padding: 20px; border-radius: 12px; position: relative;
+    background: white; width: 92%; max-width: 420px;
+    padding: 15px; border-radius: 12px; position: relative;
 }
-.tab-menu { display: flex; gap: 5px; margin-top: 15px; }
-.tab-btn {
-    flex: 1; padding: 8px; margin: 0; font-size: 13px;
-    background-color: #eee; color: #333; border: 1px solid #ccc;
-}
+.tab-menu { display: flex; gap: 4px; margin-top: 10px; }
+.tab-btn { flex: 1; padding: 6px; margin: 0; font-size: 12px; background-color: #eee; color: #333; border: 1px solid #ccc; }
 .tab-btn.active { background-color: #7b1fa2; color: white; border-color: #7b1fa2; }
-.modal-scroll-area { max-height: 320px; overflow-y: auto; margin-top: 10px; font-size: 14px; line-height: 1.6; }
-.modal-scroll-area p { margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-.close-modal { position: absolute; top: 10px; right: 15px; font-size: 24px; font-weight: bold; cursor: pointer; color: #aaa; }
+.modal-scroll-area { max-height: 280px; overflow-y: auto; margin-top: 8px; font-size: 13px; line-height: 1.5; text-align: left; }
+.modal-scroll-area p { margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+.close-modal { position: absolute; top: 8px; right: 12px; font-size: 22px; font-weight: bold; cursor: pointer; color: #aaa; }
 .close-modal:hover { color: black; }
