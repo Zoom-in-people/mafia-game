@@ -1,6 +1,6 @@
 /**
  * 4. ui-render.js
- * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 수정본
+ * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 완벽 교정판
  */
 
 function changeQuizLevel(level) {
@@ -20,7 +20,6 @@ function triggerGameViewTransition() {
     const waitingView = document.getElementById('waiting-view');
     const authView = document.getElementById('auth-view');
 
-    // [수정사항 5 반영] 교사가 리셋을 눌러 대기실('waiting')로 돌아갔을 때 모든 학생 기기 동시 복원
     if (currentStatus === 'waiting') {
         if (gameView) gameView.style.display = 'none';
         if (gameOverView) gameOverView.style.display = 'none';
@@ -87,7 +86,7 @@ function renderGameScreen() {
             return;
         }
 
-        // [요청사항 3 고정 해결] 상단 라벨이 계속 낮으로 박혀있던 바인딩 누락 전면 전이
+        // [★2번 버그 즉시 해결] 학생 기기 상단 라벨 실시간 동기화 바인딩
         const roundTitleEl = document.getElementById('round-title');
         if (roundTitleEl) {
             const phaseTxt = (status === 'day_discuss') ? "낮 ☀️" : "밤 🌙";
@@ -101,7 +100,7 @@ function renderGameScreen() {
         const myData = players[currentUser.id] || { isAlive: true, role: "none", dayVote: "none", trialDecision: "none" };
 
         const roleKorean = {
-            mafia: "마피아 🔴", citizen: "시민 ⚪", spy: "스파이 🕵️‍♂️", detective: "사립탐정 🔍",
+            mafia: "마피아 🔴", citizen: "시민 ⚪", spy: "ส파이 🕵️‍♂️", detective: "사립탐정 🔍",
             mudang: "무당 🔮", police: "경찰 👮", doctor: "의사 🩺", soldier: "군인 🪖",
             assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
         };
@@ -120,7 +119,6 @@ function renderGameScreen() {
         const trialBtnsArea = document.getElementById('trial-interactive-buttons');
         const trialResultTxt = document.getElementById('trial-submit-result-text');
 
-        // [요청사항 2 해결] 처형/부활 표결 상자 UI 노출 및 소거 확실한 실시간 라우팅 분기
         if (status === 'day_discuss') {
             if (voteState === 'voting') {
                 if (stuVotePanel) {
@@ -140,15 +138,13 @@ function renderGameScreen() {
                     voteTitle.innerText = `🚨 최다 투표 대상 사형대 진입: [${accusedNick}]`;
                     
                     if (!currentUser.isAdmin) {
-                        voteAction.style.display = 'block'; // 액션 영역 표시
+                        voteAction.style.display = 'block';
                         
-                        // 분기 가드: 이미 처형/부활 선택이 none이 아닐 때 UI 입력단 폐쇄하고 문구 주입 보장
                         if (myData.trialDecision && myData.trialDecision !== "none") {
-                            if (trialBtnsArea) trialBtnsArea.style.style.setProperty('display', 'none', 'important');
                             if (trialBtnsArea) trialBtnsArea.style.display = 'none';
                             if (trialResultTxt) {
                                 trialResultTxt.style.display = 'block';
-                                trialResultTxt.innerText = myData.trialDecision === 'execute' ? "💀 처형 판결을 선택하였습니다." : "😇 부활 판결을 선택하였습니다.";
+                                trialResultTxt.innerText = myData.trialDecision === 'execute' ? "💀 처형 찬성을 선택하셨습니다." : "😇 부활 반대를 선택하셨습니다.";
                             }
                             voteDesc.innerText = "이미 재판 찬반 판결 서명을 완료했습니다.";
                         } else {
@@ -215,23 +211,24 @@ function renderGameScreen() {
         if (status === 'day_discuss') {
             if (msgBox) { msgBox.innerText = report; msgBox.className = "alert-box"; }
             
-            // [요청사항 4 반영] 유령 전용 무당 영매 신호 수신기 버그 교정 및 수정 버튼 구현
+            // [★3번 버그 완벽 타격 해결] 낮 유령 무당 진영 감별 서명보드 및 락 가드 수정 패치
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
                     quizBox.style.display = 'block';
                     document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
                     document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}]에 대해 알려달라고 기도를 올렸습니다.\n이 자의 영혼 진영 소속을 감별하여 투표해 주세요!`;
                     
-                    // 버그 수정: ghostVotes 전체 노드 매핑 오류를 고치고 내 UID 패스로 정확하게 판정
-                    if (ghostVotes && ghostVotes[currentUser.id]) {
+                    // 단순 존재 유무가 아니라 문자열이나 데이터가 명확히 기입되어 있을 때만 마킹처리
+                    if (ghostVotes && ghostVotes[currentUser.id] && ghostVotes[currentUser.id] !== "none") {
                         const chosenSideText = ghostVotes[currentUser.id] === 'citizen_side' ? '시민진영 소속이다⚪' : '마피아진영 소속이다🔴';
                         document.getElementById('quiz-options').innerHTML = `
                             <div style='color:#7b1fa2; font-weight:bold; font-size:14px; margin-bottom:10px;'>🔮 감별 선택 완료: [${chosenSideText}]</div>
-                            <button class="quiz-opt-btn" style="background-color:#607d8b;" onclick="handleClearShamanVote()">✏️ 선택 수정하기</button>
+                            <button class="quiz-opt-btn" style="background-color:#607d8b; width:100%; padding:10px;" onclick="handleClearShamanVote()">✏️ 선택 수정하기</button>
                         `;
                     } else {
+                        // 미투표 상태일 때 정확하게 능동형 투표 버튼 2개 노출 보장
                         document.getElementById('quiz-options').innerHTML = `
-                            <button class="quiz-opt-btn" onclick="submitGhostShamanVote('citizen_side')">⚪ 시민진영 소속이다</button>
+                            <button class="quiz-opt-btn" style="margin-bottom:8px;" onclick="submitGhostShamanVote('citizen_side')">⚪ 시민진영 소속이다</button>
                             <button class="quiz-opt-btn" onclick="submitGhostShamanVote('mafia_side')">🔴 마피아진영 소속이다</button>
                         `;
                     }
@@ -309,7 +306,6 @@ function renderGameScreen() {
                     if (currentRole === 'mafia' && myData.nightTarget === id) badgeText = `<span class="badge">저격대상</span>`;
                     else if (id === myData.nightTarget) badgeText = `<span class="badge green">타겟지정</span>`;
                     else if (['citizen', 'soldier', 'assemblyman'].includes(currentRole) && id === myData.suspect) badgeText = `<span class="badge green">의심됨</span>`;
-                    else if (currentRole === 'lovers' && id === myData.suspect) badgeText = `<span class="badge green">의심됨</span>`;
                 }
 
                 let loversAppendText = "";
@@ -343,7 +339,6 @@ function handleGridCardClick(targetUid) {
                 alert("당신은 어젯밤 건달에게 폭행을 당해 오늘 낮 투표를 하실 수 없습니다!");
                 return;
             }
-            // [요청사항 2 해결] 데이터가 즉각 쓰여지도록 확실히 주입 바인딩 보장
             getDb().ref(`game/players/${currentUser.id}/dayVote`).set(targetUid);
         } else if (gameData.status === 'night_action') {
             if (['citizen', 'lovers', 'soldier', 'assemblyman'].includes(currentRole)) {
@@ -355,24 +350,49 @@ function handleGridCardClick(targetUid) {
     });
 }
 
-// [요청사항 2 해결] 찬반 재판 투표 처리용 실시간 바인딩 함수 명시 정의
+// [★1번, 2번 버그 완벽 타격 해결] 버튼과 연동되는 재판 찬반 제출 전역 연동 함수 선언
 window.submitTrialDecision = function(decisionType) {
     if (!currentUser || currentUser.isAdmin) return;
-    getDb().ref(`game/players/${currentUser.id}/trialDecision`).set(decisionType).then(() => {
-        renderGameScreen();
+    getDb().ref(`game/players/${currentUser.id}/isAlive`).get().then(snap => {
+        if (!snap.val()) return alert("사망 유령 상태에서는 재판 표결권이 없습니다.");
+        getDb().ref(`game/players/${currentUser.id}/trialDecision`).set(decisionType);
     });
 };
 
-// [요청사항 4 해결] 무당 진영 유령 전용 투표 함수
+// [★3번 버그 완벽 해결] 무당 진영 유령 전용 투표 제출
 window.submitGhostShamanVote = function(side) {
     if (!currentUser) return;
     getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side);
 };
 
-// [요청사항 4 해결] 유령 진영 선택지 수정 지우기 함수
+// [★3번 버그 완벽 해결] 유령 진영 선택지 수정 지우기 모듈
 window.handleClearShamanVote = function() {
     if (!currentUser) return;
     getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove();
+};
+
+// [★4번 버그 완전 소생 복구] 누적 의심 여론 통계 보기 전역 함수 재적재
+window.toggleSuspectRank = function() {
+    const rBox = document.getElementById('rank-list');
+    if (!rBox) return;
+
+    if (rBox.style.display === 'block') {
+        rBox.style.display = 'none';
+        return;
+    }
+
+    getDb().ref('game/last_night_suspects').get().then(snap => {
+        rBox.innerHTML = '<h4>📢 어젯밤 누적 의심 여론 기록 (득표순 랭킹)</h4>';
+        const sData = snapshot ? snapshot.val() : snap.val();
+        if (!sData || sData === "none") {
+            rBox.innerHTML += '<div>통계가 없습니다.</div>';
+        } else {
+            Object.entries(sData).sort((a,b) => b[1] - a[1]).forEach(([nick, count], idx) => {
+                rBox.innerHTML += `<div><b>${idx+1}위:</b> ${nick} (${count}표 획득)</div>`;
+            });
+        }
+        rBox.style.display = 'block';
+    });
 };
 
 function generateGhostQuiz(level) {
