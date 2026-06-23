@@ -39,7 +39,7 @@ window.toggleAdminRoleView = function(uid) {
     renderGameScreen();
 };
 
-// [요청사항 7 반영] 대기실 내 실시간 학생 강제 추방(Kick) 함수
+// 교사용 실시간 전역 추방(Kick) 함수
 window.serverKickPlayer = function(uid) {
     if (!currentUser || !currentUser.isAdmin) return;
     if (confirm("해당 학생을 대기실에서 영구 추방하시겠습니까?")) {
@@ -49,7 +49,7 @@ window.serverKickPlayer = function(uid) {
     }
 };
 
-// [요청사항 4 반영] 낮 동안 유령(사망자)이 무당의 영매 기도를 보고 진영 투표를 제출하는 함수
+// 낮 동안 유령(사망자)이 무당의 기도를 보고 진영 투표를 제출하는 함수
 window.submitGhostShamanVote = function(choiceSide) {
     if (!currentUser) return;
     getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(choiceSide).then(() => {
@@ -75,7 +75,7 @@ function toggleAuthMode(mode) {
     }
 }
 
-// [요청사항 8 반영] 회원가입 시 닉네임 중복 원천 차단 예외 가드 패치
+// 회원가입 시 닉네임 중복 원천 차단 예외 가드 패치
 function handleSignup() {
     const id = document.getElementById('signup-id').value.trim();
     const pw = document.getElementById('signup-pw').value.trim();
@@ -308,8 +308,6 @@ function handleStartGame() {
         updates['game/last_night_suspects'] = "none";
         updates['game/history_logs'] = ["게임이 흥미진진하게 시작되었습니다!"];
         updates['game/last_night_assault'] = "none";
-        updates['game/shaman_target_uid'] = "none";
-        updates['game/shaman_ghost_votes'] = "none";
 
         adminRevealMap = {}; 
         getDb().ref().update(updates);
@@ -355,7 +353,6 @@ function serverStartDayVote() {
             updates[`game/players/${id}/trialDecision`] = "none";
         }
         updates['game/vote_state'] = 'voting';
-        // 무당 서치용 유령 찬반 노드 리셋 (낮 투표 개시 시 동기화 초기화)
         updates['game/shaman_ghost_votes'] = "none";
         getDb().ref().update(updates);
     });
@@ -406,17 +403,21 @@ function submitExecutionVote(choice) {
     });
 }
 
-// [요청사항 1, 5 반영] 귀찮은 팝업창을 폐지하고 교차 데이터를 밤 상단 인게임 배너로 통합 이식
+// [★ 철저한 예외 처리 적용] 데이터 꼬임 현상 방지 안전장치 추가 완료
 function serverCalculateExecution() {
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
         const players = gameData.players || {};
-        const targetUid = gameData.target_on_trial;
+        const targetUid = gameData.target_on_trial || "none";
         const targetUser = players[targetUid];
         const historyLogs = gameData.history_logs || [];
-        const turn = gameData.turn;
+        const turn = gameData.turn || 1;
 
-        if (targetUid === "none" || !targetUser) return alert("재판대에 올라간 대상이 없습니다.");
+        // 최상단 안전 가드: 사형대 대상이 올바르지 않으면 즉시 중단하여 크래시 차단
+        if (targetUid === "none" || !targetUser) {
+            alert("정산할 투표 대상자가 존재하지 않습니다.");
+            return;
+        }
 
         let exeCount = 0; let revCount = 0;
         for (let id in players) {
@@ -439,7 +440,7 @@ function serverCalculateExecution() {
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (테러리스트) 투표 처형`);
                 reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n[${targetUser.nickname}] 학생은 처형되었습니다! (해당 학생은 ${sideText} 이었습니다.)`);
 
-                // [요청사항 5 반영] 나를 지목했고 & 동시에 처형을 선택한 저격수 중에서만 1명 자폭 대상 추첨
+                // 나를 지목했고 & 동시에 처형을 선택한 사형 처형자 중에서만 1명 저격
                 let AvengerPool = [];
                 for (let id in players) {
                     if (players[id].dayVote === targetUid && players[id].trialDecision === 'execute' && players[id].isAlive) {
@@ -457,7 +458,7 @@ function serverCalculateExecution() {
                 updates[`game/players/${targetUid}/isAlive`] = false;
                 updates[`game/players/${targetUid}/deathReason`] = "투표 처형";
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 학생 투표 처형`);
-                reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n[${targetUser.nickname}] 학생은 최종 처형되었습니다! (해당 학생은 ${sideText} 이었습니다.)`);
+                reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표로 [${targetUser.nickname}] 학생이 최종 처형되었습니다! (해당 학생은 ${sideText} 이었습니다.)`);
             }
         } else {
             reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n과반수가 부활을 선택하여 [${targetUser.nickname}] 학생이 사형대에서 무죄 부활(방면)하였습니다!`);
@@ -479,7 +480,6 @@ function serverCalculateExecution() {
         } else if (aliveMafia >= aliveCitizen) {
             updates['game/status'] = 'game_over'; updates['game/winner'] = 'mafia_win';
         } else {
-            // [요청사항 1 반영] 다음 회차가 아닌 같은 회차(turn 유지)의 밤으로 직결 이동
             updates['game/status'] = 'night_action'; 
         }
 
@@ -488,8 +488,6 @@ function serverCalculateExecution() {
             updates[`game/players/${id}/trialDecision`] = "none";
             updates[`game/players/${id}/suspect`] = "none";
         }
-        
-        // [요청사항 1 반영] 낮의 정산 결과를 아침 리포트 노드에 덮어써서 동일 회차 밤 상단 인게임 배너에 출력 유도
         updates['game/morning_report'] = reports.join("\n");
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
@@ -526,7 +524,6 @@ function renderGameScreen() {
             assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
         };
 
-        // [요청사항 6 반영] 역사 히스토리 배열 정방향 매핑 (최신 로그 하단 고정 적재)
         const logContainer = document.getElementById('history-log-list');
         if (logContainer) {
             logContainer.innerHTML = historyLogs.map(log => `<div>• ${log}</div>`).join("");
@@ -562,7 +559,6 @@ function renderGameScreen() {
                     if (!currentUser.isAdmin) {
                         voteAction.style.display = myData.isAlive ? 'block' : 'none';
                         
-                        // [요청사항 1 반영] 서명 완료 즉시 처형/부활 선택 텍스트 문구 체인지
                         if (myData.trialDecision && myData.trialDecision !== "none") {
                             if (trialBtnsArea) trialBtnsArea.style.display = 'none';
                             if (trialResultTxt) {
@@ -595,7 +591,6 @@ function renderGameScreen() {
             document.getElementById('admin-finish-vote-btn').style.display = (status === 'day_discuss' && voteState === 'voting') ? 'block' : 'none';
             document.getElementById('admin-apply-execution-btn').style.display = (status === 'day_discuss' && voteState === 'execution_trial') ? 'block' : 'none';
 
-            // [요청사항 3 반영] 교사용 밤 종료 텍스트 가독성 전면 교정 가드
             const nextBtn = document.getElementById('next-stage-btn');
             if (nextBtn) nextBtn.innerText = (status === 'night_action') ? "🌙 밤 종료" : "밤으로 단계 이동";
 
@@ -638,21 +633,18 @@ function renderGameScreen() {
             rankBtn.style.display = (status === 'day_discuss') ? 'block' : 'none';
         }
 
-        // 시간대 및 직업 분기 처리구역
         if (status === 'day_discuss') {
             if (msgBox) {
-                msgBox.innerText = report; // 낮에는 밤사이의 연산 결과가 배너에 노출됩니다
+                msgBox.innerText = report; 
                 msgBox.className = "alert-box";
             }
             
-            // [요청사항 2, 3 반영] 오직 낮(day_discuss) 일 때만 유령 기기에서 무당의 영매 진영 서명보드가 표출되도록 고정 가드
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
                     quizBox.style.display = 'block';
                     document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
                     document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}]에 대해 알려달라고 기도를 올렸습니다.\n이 자의 영혼 진영 소속을 감별하여 투표해 주세요!`;
                     
-                    // [버그 수정 완료] 나의 UID를 Key값으로 직접 조회하여 마킹 버그 전면 박멸
                     if (ghostVotes && ghostVotes[currentUser.id]) {
                         document.getElementById('quiz-options').innerHTML = `<div style='color:#7b1fa2; font-weight:bold; font-size:12px;'>감별 투표 완료: [${ghostVotes[currentUser.id] === 'citizen_side' ? '시민편' : '마피아편'}]을 마킹했습니다.</div>`;
                     } else {
@@ -668,12 +660,10 @@ function renderGameScreen() {
 
         } else if (status === 'night_action') {
             if (msgBox) {
-                // 낮의 재판 투표 정산결과(report)가 밤 배너에 즉각 동기화 상속 노출됩니다
                 msgBox.innerText = report ? `[재판 마감 보고서]\n${report}` : "밤이 되었습니다. 고유 능력을 발동할 대상을 찝어 주세요.";
                 msgBox.className = "alert-box night";
             }
 
-            // [요청사항 3 반영] 밤이 되면 무당 영매 보드는 소멸하고, 오직 유령 과학 미션 퀴즈창만 강제 스위칭 연출
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive) {
                     quizBox.style.display = 'block';
@@ -701,7 +691,6 @@ function renderGameScreen() {
             }
         }
 
-        // [요청사항 6 반영] 조사 기록 일지도 아래로 쌓이도록 정방향 누적 리스트 정렬 스크롤바 세팅
         const logBox = document.getElementById('my-personal-log-box');
         if (logBox && !currentUser.isAdmin) {
             if (myData.personalLog && myData.personalLog !== "none") {
@@ -825,7 +814,17 @@ function toggleSuspectRank() {
     });
 }
 
-// [요청사항 4 반영] 무당 영매 최종 수집 서명 일지 기입 모듈화 장착 완료
+function handleNextStage() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    getDb().ref('game/status').get().then(snap => {
+        if (snap.val() === 'day_discuss') {
+            getDb().ref('game/status').set('night_action');
+        } else {
+            processNightActions();
+        }
+    });
+}
+
 function processNightActions() {
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
@@ -857,7 +856,6 @@ function processNightActions() {
             if (p.role === 'mudang' && p.nightTarget && p.nightTarget !== 'none') nextShamanTargetUid = p.nightTarget;
         }
 
-        // [요청사항 4 반영] 낮 유령 표결의 수집 결과 정산 후 무당 서랍장에 영혼 제보 데이터 주입
         if (lastShamanTargetUid !== "none" && players[lastShamanTargetUid]) {
             let citizenVotes = 0; let mafiaVotes = 0;
             for (let gId in ghostVotes) {
@@ -1022,8 +1020,6 @@ function processNightActions() {
         updates['game/last_night_suspects'] = Object.keys(morningSuspectCounts).length > 0 ? morningSuspectCounts : "none";
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
-        
-        // [버그 수정 완료] 밤 정산 연산 직후 유령의 투표함을 백엔드에서 강제 소멸시켜 잔존 마킹 버그 원천 박멸
         updates['game/shaman_ghost_votes'] = "none"; 
 
         getDb().ref().update(updates);
