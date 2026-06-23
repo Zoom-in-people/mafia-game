@@ -167,50 +167,50 @@ button:hover { opacity: 0.9; }
     margin-bottom: 12px;
 }
 
-/* [대폭 수정] 한눈에 더 많이 들어오도록 5열 콤팩트 격자로 조정 */
+/* [요청사항 1 반영] 교사 관전 및 모든 스크린에서 닉네임 카드를 더욱 컴팩트하고 작게 극대화 축소 */
 #player-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr); 
-    gap: 5px;
+    gap: 4px;
     margin-top: 12px;
 }
 
-/* [대폭 수정] 닉네임 상자 크기를 줄이고, 2~3줄 자동 줄바꿈 고정 */
+/* [요청사항 1 반영] 폰트 크기와 패딩을 최소화하여 조밀한 28인 전용 격자 구현 */
 .grid-card {
     background: #ffffff;
-    border: 1px solid #bbb;
-    border-radius: 6px;
-    aspect-ratio: 1 / 1;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    aspect-ratio: 1.1 / 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-size: 11px; /* 폰트 축소 */
+    font-size: 10px; 
     font-weight: bold;
     cursor: pointer;
     position: relative;
     transition: all 0.2s;
-    padding: 2px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    padding: 1px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-/* 긴 닉네임 2줄~3줄로 완전 파쇄 자동 래핑 */
+/* 긴 닉네임이 잘리지 않고 요청대로 2줄~3줄 자연스럽게 래핑되도록 유지 */
 .grid-card span {
     width: 100%;
     white-space: normal;
     word-break: break-all;
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.1;
 }
 
 .grid-card span.badge {
-    font-size: 8px;
+    font-size: 7.5px;
     color: white;
-    margin-top: 2px;
+    margin-top: 1px;
     font-weight: bold;
     background: #ff5722;
-    padding: 1px 3px;
-    border-radius: 3px;
+    padding: 0px 2px;
+    border-radius: 2px;
     white-space: nowrap;
 }
 .grid-card span.badge.green { background: #4caf50; }
@@ -221,7 +221,7 @@ button:hover { opacity: 0.9; }
 .grid-card.my-selected {
     border-color: #ff9800;
     background-color: #fff8e1;
-    box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+    box-shadow: 0 0 4px rgba(255, 152, 0, 0.5);
 }
 .grid-card.dead {
     background: #ffebee;
@@ -231,8 +231,8 @@ button:hover { opacity: 0.9; }
 .grid-card.dead::after {
     content: "X";
     position: absolute;
-    font-size: 35px;
-    color: rgba(239, 83, 80, 0.4);
+    font-size: 30px;
+    color: rgba(239, 83, 80, 0.35);
     font-weight: 900;
 }
 
