@@ -86,6 +86,17 @@ button:hover { opacity: 0.9; }
     border-radius: 8px;
 }
 
+.kick-btn {
+    background-color: #d32f2f;
+    color: white;
+    border-radius: 3px;
+    font-size: 10px;
+    padding: 2px 4px;
+    width: auto;
+    margin: 0 0 0 5px;
+    display: inline-block;
+}
+
 .player-card {
     background: #eef2f3;
     border-left: 4px solid #4CAF50;
@@ -94,6 +105,9 @@ button:hover { opacity: 0.9; }
     border-radius: 4px;
     font-weight: bold;
     font-size: 13px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .alert-box {
@@ -150,7 +164,7 @@ button:hover { opacity: 0.9; }
 }
 #history-log-list {
     font-size: 12px;
-    max-height: 75px;
+    max-height: 85px;
     overflow-y: auto;
     line-height: 1.4;
     color: #555;
