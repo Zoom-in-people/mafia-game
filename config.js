@@ -1,22 +1,23 @@
 /**
  * 1. config.js
- * 프로젝트 전역 환경 설정 및 인게임 상태 구조 변수, 공통 퀴즈 상수 풀 관리
+ * 프로젝트 전역 실시간 데이터베이스(Firebase) 공유 인스턴스 헬퍼, 
+ * 인게임 상태 홀더 변수, 직업별 성격 이모지 캐릭터 아이콘 맵 및 중학 과학 연계 퀴즈 풀 관리
  */
 
-// Firebase 실시간 데이터베이스 인스턴스 범용 확보 헬퍼
+// Firebase 실시간 데이터베이스 인스턴스 유기적 공유 헬퍼
 const getDb = () => {
     if (window.sharedDatabase) return window.sharedDatabase;
     return firebase.database();
 };
 
-// 인게임 엔진 제어용 전역 변수 모음
-let currentUser = null;       // 현재 로그인 세션 객체
-let currentRole = "none";     // 본인의 배정 직업 명칭
-let currentStatus = "waiting"; // 시스템 상태 스테이지 (waiting / day_discuss / night_action / game_over)
-let currentQuiz = null;       // 유령 세션용 실시간 대입 과학 문제 객체
-let adminRevealMap = {};      // 교사용 관전 스크린 개별 블라인드 토글용 메모리 구조체
+// 인게임 전역 라이브 상태 추적 구조체 변수
+let currentUser = null;       // 현재 로그인 세션 유저 객체
+let currentRole = "none";     // 본인의 실시간 배정 직업 명칭
+let currentStatus = "waiting"; // 실시간 시스템 스테이지 상태 (waiting / day_discuss / night_action / game_over)
+let currentQuiz = null;       // 유령 세션용 실시간 과학 퀴즈 문제 객체
+let adminRevealMap = {};      // 교사용 실시간 비밀 현황판 개별 블라인드 토글용 메모리 맵
 
-// 각 직업 성격별 대표 이모지 고유 캐릭터 아이콘 맵
+// 직업 성격별 대표 이모지 고유 캐릭터 아이콘 맵
 const roleIcons = {
     mafia: "🦹", 
     citizen: "🧑‍🤝‍🧑", 
@@ -32,7 +33,7 @@ const roleIcons = {
     lovers: "💕"
 };
 
-// 과학 교육과정 연계 학년/학기별 문제 은행 및 넌센스 이월 상용 풀
+// 중학교 과학 교육과정 연계 학년/학기별 문제 은행 및 넌센스 상용 풀
 const quizBank = {
     "1-1": [
         { q: "과학: 물질의 세 가지 상태 중 모양과 부피가 일정한 상태는?", a: ["고체", "액체", "기체", "플라스마"], c: 0 },

@@ -1,19 +1,21 @@
 /**
  * 2. auth.js
- * 로그인, 회원가입, 세션 유지 및 대기실 실시간 제어 (재접속 최적화)
+ * 로그인, 회원가입, 세션 보전 및 대기실 실시간 제어 (재접속 최적화 엔진)
  */
 
+// 페이지 로드 시 기존 로그인 세션이 있다면 자동 대기실 진입
 window.onload = function() {
     const savedUser = localStorage.getItem('mafia_session');
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
         
-        // 자동 로그인 시에도 게임 진행 상태 및 기존 참여 여부 통합 검증
+        // 자동 로그인 시 현재 게임 진행 상황 선행 검증
         getDb().ref('game').get().then((snap) => {
             const gameData = snap.val() || {};
             const status = gameData.status || "waiting";
             const players = gameData.players || {};
             
+            // 이미 시작된 게임인데 내 참가 정보가 완전히 누락되어 있다면 난입 차단
             if (status !== "waiting" && !currentUser.isAdmin && !players[currentUser.id]) {
                 alert("이미 게임이 진행 중입니다. 다음 판을 기다려주세요.");
                 clearSession();
@@ -24,6 +26,7 @@ window.onload = function() {
     }
 };
 
+// 로그인 <-> 회원가입 UI 화면 전환
 function toggleAuthMode(mode) {
     if (mode === 'signup') {
         document.getElementById('login-section').style.display = 'none';
@@ -34,6 +37,7 @@ function toggleAuthMode(mode) {
     }
 }
 
+// [원본 연동] 회원가입 시 닉네임 중복 검사 로직 완벽 매핑
 function handleSignup() {
     const id = document.getElementById('signup-id').value.trim();
     const pw = document.getElementById('signup-pw').value.trim();
@@ -44,6 +48,7 @@ function handleSignup() {
 
     getDb().ref(`accounts`).get().then((snapshot) => {
         const accounts = snapshot.val() || {};
+        
         for (let accId in accounts) {
             if (accounts[accId].nick === nick) {
                 throw new Error("이미 사용 중인 닉네임입니다. 다른 닉네임을 입력하세요.");
@@ -65,6 +70,7 @@ function handleSignup() {
     }).catch(err => alert(err.message));
 }
 
+// 로그인 처리 및 교사 계정 식별
 function handleLogin() {
     const id = document.getElementById('login-id').value.trim();
     const pw = document.getElementById('login-pw').value.trim();
@@ -76,15 +82,14 @@ function handleLogin() {
         return;
     }
 
-    // 로그인 시점에 진행 중인 게임 데이터 사전 대조
     getDb().ref('game').get().then((gameSnap) => {
         const gameData = gameSnap.val() || {};
         const currentStatusVal = gameData.status || "waiting";
         const players = gameData.players || {};
 
-        // 게임이 시작되었는데 플레이어 명단에 없는 유저가 로그인을 시도할 때만 차단
+        // 게임 진행 중인데 참가자 명단에 없다면 난입 가드 차단
         if (currentStatusVal !== "waiting" && !players[id]) {
-            alert("이미 게임이 시작되어 진입할 수 없습니다. 관전자로 대기하거나 다음 판에 참여해 주세요.");
+            alert("이미 게임이 시작되어 진입할 수 없습니다. 다음 판에 참여해 주세요.");
             return;
         }
 
@@ -100,6 +105,7 @@ function handleLogin() {
     });
 }
 
+// 대기실 진입 및 실시간 튕김 방지 라이브 스캔
 function enterWaitingRoom() {
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('waiting-view').style.display = 'block';
@@ -109,7 +115,8 @@ function enterWaitingRoom() {
         document.getElementById('admin-controls').style.display = 'block';
     }
 
-    // [★버그 박멸 핵심] 대기방 상태일 때만 유저 노드를 새로 만듭니다. (진행 중 재접속 시 기존 데이터 보존)
+    // [★재접속 완전 동기화 핵심] 대기방(waiting) 상태일 때만 데이터를 새로 초기화 생성합니다.
+    // 만약 낮/밤 게임 도중 튕겨서 들어온 상태라면 기존의 데이터 노드를 건드리지 않고 그대로 상속 보존합니다.
     getDb().ref('game/status').get().then((statusSnap) => {
         const currentStat = statusSnap.val() || "waiting";
         if (currentStat === "waiting" && !currentUser.isAdmin) {
@@ -125,11 +132,12 @@ function enterWaitingRoom() {
         }
     });
 
-    // 실시간 명단 갱신
+    // 실시간 대기실 학생 명단 동적 동기화 리스너
     getDb().ref('game/players').on('value', (snapshot) => {
         if (!currentUser) return;
         const players = snapshot.val() || {};
         
+        // 실시간 추방(Kick) 감지 가드 (대기실 상태에서 강등되었을 때만 세션 폐쇄)
         if (!currentUser.isAdmin && !players[currentUser.id] && currentStatus === 'waiting') {
             alert("교사에 의해 대기실에서 추방되었습니다.");
             clearSession();
@@ -151,7 +159,7 @@ function enterWaitingRoom() {
         if (countDisp) countDisp.innerText = count;
     });
 
-    // 글로벌 상태 전이 실시간 감시 파이프라인
+    // 글로벌 상태 전이 실시간 감시 파이프라인 (.on 작동으로 무인 즉각 화면 전환 보장)
     getDb().ref('game/status').on('value', (snapshot) => {
         currentStatus = snapshot.val() || 'waiting';
         if (currentStatus && currentStatus !== 'waiting') {
@@ -162,10 +170,13 @@ function enterWaitingRoom() {
     });
 }
 
+// [요청사항 7 반영] 대기실 내 실시간 학생 강제 추방(Kick) 함수 원본 복구
 window.serverKickPlayer = function(uid) {
     if (!currentUser || !currentUser.isAdmin) return;
     if (confirm("해당 학생을 대기실에서 영구 추방하시겠습니까?")) {
-        getDb().ref(`game/players/${uid}`).remove();
+        getDb().ref(`game/players/${uid}`).remove().then(() => {
+            alert("추방 처리가 완료되었습니다.");
+        });
     }
 };
 
