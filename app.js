@@ -271,7 +271,8 @@ function handleStartGame() {
         updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = "none";
         updates['game/history_logs'] = ["게임이 흥미진진하게 시작되었습니다!"];
-        updates['game/last_night_assault'] = "none"; // 건달 폭행 대상 동기화 노드
+        updates['game/last_night_assault'] = "none";
+        updates['game/last_popup_alert_text'] = "none"; // 리얼타임 전역 동기화 팝업 알림 노드
 
         adminRevealMap = {}; 
         getDb().ref().update(updates);
@@ -306,6 +307,18 @@ getDb().ref('game/status').on('value', (snapshot) => {
 getDb().ref('game/vote_state').on('value', () => {
     if (currentUser && currentStatus !== 'waiting' && currentStatus !== 'game_over') {
         renderGameScreen();
+    }
+});
+
+// [요청사항 2 반영] 실시간 백엔드 정산 팝업 알림 감지용 리스너 연동 구동
+getDb().ref('game/last_popup_alert_text').on('value', (snapshot) => {
+    const txt = snapshot.val();
+    if (txt && txt !== "none" && currentUser) {
+        alert(txt);
+        // 확인 완료 후 교사가 아닌 학생들의 팝업 오작동 무한루프 방지를 위해 노드 클리어 처리 가이드
+        if (currentUser.isAdmin) {
+            getDb().ref('game/last_popup_alert_text').set("none");
+        }
     }
 });
 
@@ -345,6 +358,7 @@ function serverStartDayVote() {
         const updates = {};
         for (let id in players) {
             updates[`game/players/${id}/dayVote`] = "none";
+            updates[`game/players/${id}/trialDecision`] = "none";
         }
         updates['game/vote_state'] = 'voting';
         getDb().ref().update(updates);
@@ -385,17 +399,18 @@ function serverFinishDayVote() {
     });
 }
 
+// [요청사항 1 반영] 처형/부활 표결 버튼 클릭 즉시 클라이언트 상태 리프레시 동기화
 function submitExecutionVote(choice) {
     if (!currentUser || currentUser.isAdmin) return;
     getDb().ref(`game/players/${currentUser.id}/isAlive`).get().then(snap => {
         if (!snap.val()) return alert("사망 유령 상태에서는 재판 표결권이 없습니다.");
         getDb().ref(`game/players/${currentUser.id}/trialDecision`).set(choice).then(() => {
-            alert("찬반 판결 투표가 제출되었습니다.");
+            renderGameScreen(); // 즉시 인터페이스 가림 처리 갱신
         });
     });
 }
 
-// [요청사항 3, 7 반영] 처형 확정 시 같은 회차 밤으로 다이렉트 이행 및 테러리스트 랜덤 길동무 로직 심기
+// [요청사항 2, 4, 7 반영] 정산 시 팝업 내용 조립 및 테러리스트 조건부 복수 저격 알고리즘 빌드
 function serverCalculateExecution() {
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
@@ -415,39 +430,50 @@ function serverCalculateExecution() {
 
         let reports = [];
         let updates = {};
+        let popupAlertText = ""; // 전원에게 동시 살포할 전역 얼럿 문자열 공간
+
+        const sideText = (targetUser.role === 'mafia' || targetUser.role === 'spy') ? "마피아 진영🔴" : "시민 진영⚪";
 
         if (exeCount >= revCount) {
             if (targetUser.role === 'assemblyman') {
                 reports.push(`[최종 재판] 처형 찬성이 많았으나, [${targetUser.nickname}](국회의원) 면책특권 발동으로 부활 생존했습니다!`);
+                popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n국회의원 면책특권 발동으로 [${targetUser.nickname}] 학생이 부활하였습니다!`;
             } else if (targetUser.role === 'terrorist') {
                 updates[`game/players/${targetUid}/isAlive`] = false;
                 updates[`game/players/${targetUid}/deathReason`] = "투표 처형";
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (테러리스트) 투표 처형`);
                 reports.push(`[최종 재판] 테러리스트 [${targetUser.nickname}]이 처형되며 동귀어진 폭탄을 터트렸습니다.`);
                 
-                // [요청사항 7 반영] 생존자 전원 중 무작위 1명 추첨 동반 자폭 연산 (본인 제외)
-                let alivePool = [];
+                popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n[${targetUser.nickname}] 학생은 처형되었습니다!\n(해당 학생은 ${sideText} 이었습니다.)`;
+
+                // [요청사항 4 반영] 나를 지목했으면서 동시에 처형(execute)을 누른 저격수 풀 산출
+                let AvengerPool = [];
                 for (let id in players) {
-                    if (players[id].isAlive && id !== targetUid) {
-                        alivePool.push(id);
+                    if (players[id].dayVote === targetUid && players[id].trialDecision === 'execute' && players[id].isAlive) {
+                        AvengerPool.push(id);
                     }
                 }
-                if (alivePool.length > 0) {
-                    let randomVictimUid = alivePool[Math.floor(Math.random() * alivePool.length)];
+                if (AvengerPool.length > 0) {
+                    let randomVictimUid = AvengerPool[Math.floor(Math.random() * AvengerPool.length)];
                     updates[`game/players/${randomVictimUid}/isAlive`] = false;
                     updates[`game/players/${randomVictimUid}/deathReason`] = "테러 자폭";
-                    historyLogs.push(`제 ${turn}회차 낮: [${players[randomVictimUid].nickname}] 테러 무작위 파편 사망`);
-                    reports.push(`↳ 폭발의 거대한 파편 여파로 생존자 중 무작위로 [${players[randomVictimUid].nickname}] 학생이 함께 휩쓸려 사망했습니다!`);
+                    historyLogs.push(`제 ${turn}회차 낮: [${players[randomVictimUid].nickname}] 테러 저격 복수 사망`);
+                    reports.push(`↳ 테러리스트를 의심하고 처형표를 던졌던 저격수 중 [${players[randomVictimUid].nickname}] 학생이 자폭 동반 파편에 휘말려 즉사했습니다!`);
+                    popupAlertText += `\n\n💥 테러리스트 자폭 복수 발동!\n나를 지목하고 처형한 [${players[randomVictimUid].nickname}] 학생이 동반 사망했습니다!`;
                 }
             } else {
                 updates[`game/players/${targetUid}/isAlive`] = false;
                 updates[`game/players/${targetUid}/deathReason`] = "투표 처형";
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 학생 투표 처형`);
                 reports.push(`[최종 재판] 찬성 ${exeCount}표 / 반대 ${revCount}표로 [${targetUser.nickname}] 학생이 최종 처형되었습니다.`);
+                
+                popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n[${targetUser.nickname}] 학생은 처형되었습니다!\n(해당 학생은 ${sideText} 이었습니다.)`;
             }
         } else {
             reports.push(`[최종 재판] 반대 ${revCount}표의 부활 표결이 많아 [${targetUser.nickname}] 학생의 처형이 철회 및 방면되었습니다.`);
             historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 찬반 재판 부활 면제 성공`);
+            
+            popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n과반수가 반대하여 [${targetUser.nickname}] 학생이 방면(부활)하였습니다!`;
         }
 
         let aliveMafia = 0; let aliveCitizen = 0;
@@ -465,19 +491,19 @@ function serverCalculateExecution() {
         } else if (aliveMafia >= aliveCitizen) {
             updates['game/status'] = 'game_over'; updates['game/winner'] = 'mafia_win';
         } else {
-            // [요청사항 3 반영] 다음 회차가 아닌 같은 회차(turn 유지)의 밤으로 강제 연결 이동 처리
             updates['game/status'] = 'night_action'; 
         }
 
-        // 낮 임시 투표 데이터만 완전 초기화
         for (let id in players) {
             updates[`game/players/${id}/dayVote`] = "none";
             updates[`game/players/${id}/trialDecision`] = "none";
+            updates[`game/players/${id}/suspect`] = "none";
         }
         updates['game/morning_report'] = reports.join("\n");
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
         updates['game/target_on_trial'] = 'none';
+        updates['game/last_popup_alert_text'] = popupAlertText; // 전역 분사 연동
 
         getDb().ref().update(updates);
     });
@@ -517,13 +543,16 @@ function renderGameScreen() {
         const voteTitle = document.getElementById('vote-panel-title');
         const voteDesc = document.getElementById('vote-panel-desc');
         const voteAction = document.getElementById('vote-action-area');
+        
+        // [요청사항 1 반영] 처형/부활 버튼 토글 돔 컴포넌트 주소 바인딩
+        const trialBtnsArea = document.getElementById('trial-interactive-buttons');
+        const trialResultTxt = document.getElementById('trial-submit-result-text');
 
         if (status === 'day_discuss') {
             if (voteState === 'voting') {
                 if (stuVotePanel) {
                     stuVotePanel.style.display = 'block';
                     voteTitle.innerText = "🗳️ 현재 낮 의심자 투표가 개시되었습니다!";
-                    // [요청사항 2 반영] 폭행당한 플레이어 인터페이스 제어용 배너 문구 스위칭
                     if (lastNightAssault === currentUser.id) {
                         voteDesc.innerHTML = "<span style='color:#d32f2f; font-size:15px;'>🚨 폭행을 당해 투표를 할 수 없습니다.</span>";
                     } else {
@@ -533,15 +562,29 @@ function renderGameScreen() {
                 }
             } else if (voteState === 'execution_trial') {
                 if (stuVotePanel) {
-                    // [요청사항 5 반영] 찬반 표결을 이미 마쳤다면 중복클릭 방지를 위해 박스 자체를 완전히 숨김 처리
-                    if (myData.trialDecision && myData.trialDecision !== "none") {
-                        stuVotePanel.style.display = 'none';
+                    stuVotePanel.style.display = 'block';
+                    const accusedNick = players[targetOnTrial] ? players[targetOnTrial].nickname : "조회불가";
+                    voteTitle.innerText = `🚨 최다 투표 대상 사형대 진입: [${accusedNick}]`;
+                    
+                    if (!currentUser.isAdmin) {
+                        voteAction.style.display = myData.isAlive ? 'block' : 'none';
+                        
+                        // [요청사항 1 반영] 선택 여부에 따른 양식 스위칭 기믹
+                        if (myData.trialDecision && myData.trialDecision !== "none") {
+                            if (trialBtnsArea) trialBtnsArea.style.display = 'none';
+                            if (trialResultTxt) {
+                                trialResultTxt.style.display = 'block';
+                                trialResultTxt.innerText = myData.trialDecision === 'execute' ? "💀 처형 판결을 선택하였습니다. 교사의 마감을 기다리세요." : "😇 부활 판결을 선택하였습니다. 교사의 마감을 기다리세요.";
+                            }
+                            voteDesc.innerText = "이미 재판 찬반 판결 서명을 완료했습니다.";
+                        } else {
+                            if (trialBtnsArea) trialBtnsArea.style.display = 'flex';
+                            if (trialResultTxt) trialResultTxt.style.display = 'none';
+                            voteDesc.innerText = "이 대상을 처형할지, 부활시킬지 찬반 투표를 진행합니다.";
+                        }
                     } else {
-                        stuVotePanel.style.display = 'block';
-                        const accusedNick = players[targetOnTrial] ? players[targetOnTrial].nickname : "조회불가";
-                        voteTitle.innerText = `🚨 최다 투표 대상 사형대 진입: [${accusedNick}]`;
-                        voteDesc.innerText = "이 대상을 처형할지, 부활시킬지 찬반 투표를 진행합니다.";
-                        voteAction.style.display = myData.isAlive && !currentUser.isAdmin ? 'block' : 'none';
+                        voteDesc.innerText = "학생들의 찬반 표결을 기다리고 있습니다.";
+                        voteAction.style.display = 'none';
                     }
                 }
             } else {
@@ -723,7 +766,6 @@ function handleGridCardClick(targetUid) {
 
         if (!myData || !myData.isAlive) return;
 
-        // [요청사항 2 반영] 폭행당한 유저는 터치 행위를 통해 의심자 지정표 행사 불가 가드
         if (gameData.status === 'day_discuss' && gameData.vote_state === 'voting') {
             if (gameData.last_night_assault === currentUser.id) {
                 alert("당신은 어젯밤 건달에게 폭행을 당해 오늘 낮 투표를 하실 수 없습니다!");
@@ -802,7 +844,6 @@ function handleNextStage() {
     });
 }
 
-// [요청사항 1, 2, 4, 6, 9 반영] 야간 스파이 비인도적 서칭, 건달 폭행 이월 정보 기록장 이관 연산
 function processNightActions() {
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
@@ -818,7 +859,6 @@ function processNightActions() {
         let mafiaTargets = {};
         let protectedUid = "none";
         
-        // 정산용 임시 데이터 컴포넌트 선언
         let spyTargetUid = "none";
         let gangsterTargetUid = "none";
 
@@ -831,7 +871,6 @@ function processNightActions() {
             if (p.role === 'gangster' && p.nightTarget && p.nightTarget !== 'none') gangsterTargetUid = p.nightTarget;
         }
 
-        // 각 능력자 직업군 일지 동적 기록 및 가공 파트
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
@@ -839,13 +878,11 @@ function processNightActions() {
             let line = "";
             let currentLog = p.personalLog === "none" ? "" : (p.personalLog || "");
 
-            // [요청사항 4 반영] 경찰이 스파이를 스캔 지목 시 '마피아 진영🔴'으로 격상 표기 판정
             if (p.role === 'police') {
                 const isMafiaSide = (t.role === 'mafia' || t.role === 'spy');
                 line = `[${currentTurnVal}일차 밤] [${t.nickname}] 조사 -> ${isMafiaSide ? '마피아 진영🔴' : '시민 진영⚪'}`;
             }
             
-            // [요청사항 7 반영 규칙 수정] 무당 소속진영 투시 가공
             if (p.role === 'mudang') {
                 const teamSide = (t.role === 'mafia' || t.role === 'spy') ? '마피아 편🔴' : '시민 편⚪';
                 line = `[${currentTurnVal}일차 밤] [${t.nickname}] 투시 -> 소속 진영 [${teamSide}]`;
@@ -853,30 +890,33 @@ function processNightActions() {
             
             if (p.role === 'detective') line = `[${currentTurnVal}일차 밤] [${t.nickname}] 추적 -> 지목 타겟 [${players[t.nightTarget]?.nickname || '없음'}]`;
 
+            // 스파이 일지장 표출 내역
+            if (p.role === 'spy') {
+                line = `[${currentTurnVal}일차 밤] [${t.nickname}] 조사 완료 -> 마피아에게 정보가 안전하게 전달되었습니다.`;
+            }
+
             if (line) updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${line}` : line;
         }
 
-        // [요청사항 1, 9 반영] 스파이의 조사 결과를 "마피아 진영 내부" 플레이어들의 일지장에만 비밀 주입
+        // [요청사항 3 반영] 마피아 일지장 스파이제보 명명 치환 고도화 매핑
         if (spyTargetUid !== "none" && players[spyTargetUid]) {
             const spyT = players[spyTargetUid];
             let spyIdentityResult = "직업이 있습니다.";
             if (spyT.role === 'citizen') spyIdentityResult = "시민입니다.";
             if (spyT.role === 'mafia') spyIdentityResult = "마피아입니다.";
 
-            // 스파이가 진짜 마피아를 찾은 경우의 특수 선언문 도출
             let spyContactBonusText = "";
             if (spyT.role === 'mafia') {
-                // 스파이 본인 닉네임 서치
                 let actualSpyNick = "스파이";
                 for (let sId in players) { if (players[sId].role === 'spy') { actualSpyNick = players[sId].nickname; break; } }
                 spyContactBonusText = `\n🔥 [접선성공] 스파이가 마피아를 찾았습니다. 스파이는 [${actualSpyNick}]입니다.`;
             }
 
-            // 마피아 세력(mafia, spy)들의 일지장에 비밀 상속
             for (let id in players) {
                 if (players[id].role === 'mafia' || players[id].role === 'spy') {
                     let mLog = (players[id].personalLog === "none") ? "" : (players[id].personalLog || "");
-                    let spySecureLine = `[${currentTurnVal}일차 밤 정보제보] [${spyT.nickname}] 학생은 '${spyIdentityResult}'${spyContactBonusText}`;
+                    // '정보제보' 문구를 요청사항에 의거 '스파이제보' 문구 세트로 전면 교환
+                    let spySecureLine = `[${currentTurnVal}일차 밤 스파이제보] [${spyT.nickname}] 학생은 '${spyIdentityResult}'${spyContactBonusText}`;
                     updates[`game/players/${id}/personalLog`] = mLog ? `${mLog}\n${spySecureLine}` : spySecureLine;
                 }
             }
@@ -887,11 +927,9 @@ function processNightActions() {
             if (mafiaTargets[t] > max) { max = mafiaTargets[t]; finalMTarget = t; }
         }
 
-        // 마피아 살해 연산 구동 파트
         if (finalMTarget !== "none" && finalMTarget !== protectedUid) {
             const targetUser = players[finalMTarget];
             
-            // [요청사항 6 반영] 군인 방어 시 실명 강제 공개 노출 적용
             if (targetUser.role === 'soldier' && targetUser.soldierLife > 1) {
                 updates[`game/players/${finalMTarget}/soldierLife`] = 1;
                 reports.push(`🪖 군인 [${targetUser.nickname}]이 어젯밤 마피아의 기습을 강력한 방패로 막아냈습니다.`);
@@ -934,7 +972,6 @@ function processNightActions() {
             reports.push(`밤사이에 평화로운 정적만이 흘렀습니다.`);
         }
 
-        // [요청사항 2 반영] 건달 폭행 전원 공지사항 연동 생성 및 저장
         if (gangsterTargetUid !== "none" && players[gangsterTargetUid]) {
             reports.push(`🥊 건달의 무자비한 폭행으로 인해 [${players[gangsterTargetUid].nickname}] 학생은 오늘 낮 투표권을 완전히 박탈당했습니다!`);
             updates['game/last_night_assault'] = gangsterTargetUid;
@@ -942,7 +979,6 @@ function processNightActions() {
             updates['game/last_night_assault'] = "none";
         }
 
-        // 야간의 모든 의심 여론 다중 지목 투표 연산 통합
         let morningSuspectCounts = {};
         for (let id in players) {
             const sId = players[id].suspect;
@@ -951,8 +987,6 @@ function processNightActions() {
                 morningSuspectCounts[sNick] = (morningSuspectCounts[sNick] || 0) + 1;
             }
         }
-
-        let nextHint = "없음";
 
         deadList.forEach(d => {
             updates[`game/players/${d}/isAlive`] = false;
@@ -1069,6 +1103,7 @@ function handleResetToWaiting() {
             updates[`game/players/${id}/suspect`] = "none";
             updates[`game/players/${id}/personalLog`] = "none";
             updates[`game/players/${id}/deathReason`] = "none";
+            updates[`game/players/${id}/trialDecision`] = "none";
         }
 
         updates['game/status'] = 'waiting';
@@ -1079,6 +1114,7 @@ function handleResetToWaiting() {
         updates['game/last_night_suspects'] = "none";
         updates['game/history_logs'] = ["새로운 대기실 세션이 시작되었습니다."];
         updates['game/last_night_assault'] = "none";
+        updates['game/last_popup_alert_text'] = "none";
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;
