@@ -9,7 +9,6 @@ let currentStatus = "waiting";
 let currentQuiz = null;
 let adminRevealMap = {};
 
-// 최종 공개 화면용 캐릭터 이모지 아이콘 맵
 const roleIcons = {
     mafia: "🦹", citizen: "🧑‍🤝‍🧑", spy: "🕵️", detective: "🔍",
     mudang: "🔮", police: "👮", doctor: "🩺", soldier: "🪖",
@@ -35,7 +34,6 @@ const quizBank = {
     ]
 };
 
-// 교사 화면 전용: 개별 학생 직업 보안 해제 토글 함수
 window.toggleAdminRoleView = function(uid) {
     adminRevealMap[uid] = !adminRevealMap[uid];
     renderGameScreen();
@@ -276,6 +274,14 @@ function handleStartGame() {
         getDb().ref().update(updates);
     });
 }
+
+// [버그 수정 고정] 전역 스코프 브라우저 바인딩을 추가하여 ReferenceError: handleForceStopGame 완벽 소멸 조치
+window.handleForceStopGame = function() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    if (confirm("진행 중인 게임을 강제로 파기하고 대기실로 리셋하시겠습니까?")) {
+        handleResetToWaiting();
+    }
+};
 
 getDb().ref('game/status').on('value', (snapshot) => {
     currentStatus = snapshot.val();
@@ -762,7 +768,6 @@ function processNightActions() {
             if (p.role === 'doctor' && p.nightTarget && p.nightTarget !== 'none') protectedUid = p.nightTarget;
         }
 
-        // [버그 수정 완료] 기존 turn을 전역 및 올바른 지역변수명인 currentTurnVal로 전면 교정 매핑
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;

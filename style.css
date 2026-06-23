@@ -11,15 +11,14 @@ body {
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
-    padding: 10px; /* 여백 축소로 모바일 체감 향상 */
+    padding: 10px;
 }
 
-/* [수정 반영] 학생 및 교사 화면의 크기를 기기 화면 폭에 맞춰 100% 반응형 유연 확장 */
 #app {
     width: 100%;
     width: -webkit-fill-available;
     background: white;
-    padding: 4vw; /* 반응형 가변 패딩 */
+    padding: 4vw;
     border-radius: 12px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     margin-top: 5px;
@@ -168,39 +167,51 @@ button:hover { opacity: 0.9; }
     margin-bottom: 12px;
 }
 
+/* [대폭 수정] 한눈에 더 많이 들어오도록 5열 콤팩트 격자로 조정 */
 #player-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr); /* 4열 엄격 고정 구조로 스마트폰 맞춤형 */
-    gap: 6px;
+    grid-template-columns: repeat(5, 1fr); 
+    gap: 5px;
     margin-top: 12px;
 }
 
+/* [대폭 수정] 닉네임 상자 크기를 줄이고, 2~3줄 자동 줄바꿈 고정 */
 .grid-card {
     background: #ffffff;
-    border: 2px solid #ccc;
-    border-radius: 8px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
     aspect-ratio: 1 / 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-size: 12px;
+    font-size: 11px; /* 폰트 축소 */
     font-weight: bold;
     cursor: pointer;
     position: relative;
     transition: all 0.2s;
-    padding: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* 긴 닉네임 2줄~3줄로 완전 파쇄 자동 래핑 */
+.grid-card span {
+    width: 100%;
+    white-space: normal;
+    word-break: break-all;
+    text-align: center;
+    line-height: 1.2;
 }
 
 .grid-card span.badge {
-    font-size: 9px;
+    font-size: 8px;
     color: white;
-    margin-top: 4px;
+    margin-top: 2px;
     font-weight: bold;
     background: #ff5722;
-    padding: 1px 4px;
-    border-radius: 4px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    white-space: nowrap;
 }
 .grid-card span.badge.green { background: #4caf50; }
 .grid-card span.badge.blue { background: #2196f3; }
@@ -210,7 +221,7 @@ button:hover { opacity: 0.9; }
 .grid-card.my-selected {
     border-color: #ff9800;
     background-color: #fff8e1;
-    box-shadow: 0 0 6px rgba(255, 152, 0, 0.5);
+    box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
 }
 .grid-card.dead {
     background: #ffebee;
@@ -220,7 +231,7 @@ button:hover { opacity: 0.9; }
 .grid-card.dead::after {
     content: "X";
     position: absolute;
-    font-size: 45px;
+    font-size: 35px;
     color: rgba(239, 83, 80, 0.4);
     font-weight: 900;
 }
@@ -293,7 +304,7 @@ button:hover { opacity: 0.9; }
 
 .faction-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); /* 2열 균등 배치 모바일 대응 */
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
 }
 
