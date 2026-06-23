@@ -1,6 +1,6 @@
 /**
  * 3. game-logic.js
- * 게임 시작(직업 분배), 낮/밤 페이즈 제어, 특수 직업 연산 정산 엔진
+ * 게임 시작(직업 분배), 낮/밤 페이즈 제어, 특수 직업 연산 정산 엔진 (수정본)
  */
 
 // 게임 시작 및 직업 난수 분배 연산
@@ -67,17 +67,19 @@ function handleStartGame() {
         updates['game/last_popup_alert_text'] = "none";
         updates['game/shaman_target_uid'] = "none";
         updates['game/shaman_ghost_votes'] = "none";
+        
+        // [수정사항 1, 2] 동표 예외처리 카운터 초기화
+        updates['game/day_vote_retry_count'] = 0;
+        updates['game/trial_retry_count'] = 0;
 
         adminRevealMap = {}; 
         
-        // 직업 각인이 완전히 끝난 후, 비동기 순서를 보장하며 마지막에 status를 전이시켜 싱크 딜레이를 완벽 박멸합니다.
         getDb().ref().update(updates).then(() => {
             getDb().ref('game/status').set('day_discuss');
         });
     });
 }
 
-// 교사 패널 강제 리셋 폭파 함수 전역 정의
 window.handleForceStopGame = function() {
     if (!currentUser || !currentUser.isAdmin) return;
     if (confirm("진행 중인 게임을 강제로 파기하고 대기실로 리셋하시겠습니까?")) {
@@ -95,55 +97,79 @@ function serverStartDayVote() {
             updates[`game/players/${id}/trialDecision`] = "none";
         }
         updates['game/vote_state'] = 'voting';
-        // [원본 연동] 무당 서치용 유령 찬반 노드 리셋 (낮 투표 개시 시 동기화 초기화)
-        updates['game/shaman_ghost_votes'] = "none";
         getDb().ref().update(updates);
     });
 }
 
-// 의심자 지목 투표 마감 및 사형대 소환 정산
+// [요청사항 1 반영] 의심자 지목 투표 마감 및 동표 재투표 엔진
 function serverFinishDayVote() {
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
         const players = gameData.players || {};
         const lastNightAssault = gameData.last_night_assault || "none";
+        const retryCount = gameData.day_vote_retry_count || 0;
         
         let tally = {};
         for (let id in players) {
-            // 건달에게 폭행당한 유저는 투표 계산권에서 배제
             if (id === lastNightAssault || !players[id].isAlive) continue;
-
             let v = players[id].dayVote;
             if (v && v !== "none" && players[v] && players[v].isAlive) {
                 tally[v] = (tally[v] || 0) + 1;
             }
         }
 
-        let max = 0; let candidate = "none";
+        let max = 0;
         for (let uid in tally) {
-            if (tally[uid] > max) { max = tally[uid]; candidate = uid; }
+            if (tally[uid] > max) max = tally[uid];
         }
 
-        if (candidate === "none") {
+        if (max === 0) {
             alert("지목된 투표 내역이 없어 사형 대상자가 선출되지 않았습니다.");
             return;
         }
 
+        // 최다 득표를 얻은 후보군 추출
+        let candidates = [];
+        for (let uid in tally) {
+            if (tally[uid] === max) candidates.push(uid);
+        }
+
+        // 동일한 인원의 최고 득표(동표) 발생 시 처리
+        if (candidates.length > 1) {
+            const nextRetry = retryCount + 1;
+            if (nextRetry < 3) {
+                const updates = {};
+                updates['game/day_vote_retry_count'] = nextRetry;
+                updates['game/vote_state'] = 'voting'; // 재투표 세션 개시
+                for (let id in players) {
+                    updates[`game/players/${id}/dayVote`] = "none";
+                }
+                updates['game/last_popup_alert_text'] = `🚨 동표 발생 (최고 ${max}표)로 인해 재투표를 실시합니다! (현재 재투표 횟수: ${nextRetry}/2회)`;
+                getDb().ref().update(updates);
+                return;
+            } else {
+                // 3회 이상 동표 시 무작위로 1명을 사형대로 선정하여 재판 진행
+                alert("3회 연속 동표가 발생하여 후보 중 무작위 1명을 선정하여 재판을 진행합니다.");
+                candidates = [candidates[Math.floor(Math.random() * candidates.length)]];
+            }
+        }
+
+        const candidate = candidates[0];
         const updates = {};
         updates['game/vote_state'] = 'execution_trial';
         updates['game/target_on_trial'] = candidate;
+        updates['game/day_vote_retry_count'] = 0; // 초기화
+        updates['game/trial_retry_count'] = 0; // 초기화
         
         for (let id in players) {
             updates[`game/players/${id}/trialDecision`] = "none";
         }
-        // [원본 연동] 유령 마킹 보드 리셋 클리어
-        updates['game/shaman_ghost_votes'] = "none";
 
         getDb().ref().update(updates);
     });
 }
 
-// 사형대 찬반 재판 표결 정산 및 특수 체인 가동
+// [요청사항 2 반영] 찬반 표결 정산 및 투표 동표 재선택 연산 엔진
 function serverCalculateExecution() {
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
@@ -152,6 +178,7 @@ function serverCalculateExecution() {
         const targetUser = players[targetUid];
         const historyLogs = gameData.history_logs || [];
         const turn = gameData.turn || 1;
+        const tRetry = gameData.trial_retry_count || 0;
 
         if (targetUid === "none" || !targetUser) return alert("재판대에 올라간 대상이 없습니다.");
 
@@ -161,28 +188,41 @@ function serverCalculateExecution() {
             if (players[id].trialDecision === 'revive') revCount++;
         }
 
+        // 찬반 표결 수가 동일할 때 예외처리 가드
+        if (exeCount === revCount && (exeCount > 0 || revCount > 0)) {
+            const nextTRetry = tRetry + 1;
+            if (nextTRetry < 3) {
+                const updates = {};
+                updates['game/trial_retry_count'] = nextTRetry;
+                for (let id in players) {
+                    updates[`game/players/${id}/trialDecision`] = "none";
+                }
+                updates['game/last_popup_alert_text'] = `🚨 찬성/반대 동표(${exeCount}대${revCount}) 발생으로 인해 재투표를 실시합니다! (재시도: ${nextTRetry}/2회)`;
+                getDb().ref().update(updates);
+                return;
+            } else {
+                // 3회 이상 찬반 동표 발생 시 '부활(면제)' 처리 고정
+                exeCount = 0; revCount = 999; 
+            }
+        }
+
         let reports = []; let updates = {};
         let popupAlertText = ""; 
-
         const sideText = (targetUser.role === 'mafia' || targetUser.role === 'spy') ? "마피아 진영🔴" : "시민 진영⚪";
 
-        if (exeCount >= revCount) {
-            // [원본 연동 공식 1] 국회의원 면책특권 정상 발동 및 배너 로그 각인
+        if (exeCount > revCount) {
             if (targetUser.role === 'assemblyman') {
                 reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n국회의원 면책특권 발동으로 [${targetUser.nickname}] 학생이 부활 생존했습니다!`);
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (국회의원) 면책특권 생존`);
                 popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n국회의원 면책특권 발동으로 [${targetUser.nickname}] 학생이 부활하였습니다!`;
             } 
-            // [원본 연동 공식 2] 테러리스트 조건부 처형 복수 연산 엔진 가동
             else if (targetUser.role === 'terrorist') {
                 updates[`game/players/${targetUid}/isAlive`] = false;
                 updates[`game/players/${targetUid}/deathReason`] = "투표 처형";
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (테러리스트) 투표 처형`);
                 reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n[${targetUser.nickname}] 학생은 처형되었습니다! (해당 학생은 ${sideText} 이었습니다.)`);
-                
                 popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n[${targetUser.nickname}] 학생은 처형되었습니다!\n(해당 학생은 ${sideText} 이었습니다.)`;
 
-                // 나를 지목했고(dayVote) & 동시에 최종 처형(execute)을 누른 살아있는 학생만 추출
                 let AvengerPool = [];
                 for (let id in players) {
                     if (players[id].dayVote === targetUid && players[id].trialDecision === 'execute' && players[id].isAlive) {
@@ -206,9 +246,9 @@ function serverCalculateExecution() {
                 popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n[${targetUser.nickname}] 학생은 최종 처형되었습니다!\n(해당 학생은 ${sideText} 이었습니다.)`;
             }
         } else {
-            reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n과반수가 부활을 선택하여 [${targetUser.nickname}] 학생이 사형대에서 무죄 부활(방면)하였습니다!`);
+            reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n과반수(혹은 동표 규정)에 의해 [${targetUser.nickname}] 학생이 사형대에서 무죄 부활(방면)하였습니다!`);
             historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 찬반 재판 부활 면제 성공`);
-            popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n과반수가 반대하여 [${targetUser.nickname}] 학생이 부활하였습니다!`;
+            popupAlertText = `[최종 재판 결과]\n처형 찬성: ${exeCount}표 / 부활 반대: ${revCount}표\n과반수가 반대하거나 동표 기준 초과로 [${targetUser.nickname}] 학생이 부활하였습니다!`;
         }
 
         let aliveMafia = 0; let aliveCitizen = 0;
@@ -225,7 +265,6 @@ function serverCalculateExecution() {
         } else if (aliveMafia >= aliveCitizen) {
             updates['game/status'] = 'game_over'; updates['game/winner'] = 'mafia_win';
         } else {
-            // [원본 연동 공식 3] 회차 밀림 현상 방지를 위해 다음 회차 낮이 아닌 '같은 회차 밤'으로 다이렉트 브릿지 이동
             updates['game/status'] = 'night_action'; 
         }
 
@@ -235,12 +274,13 @@ function serverCalculateExecution() {
             updates[`game/players/${id}/suspect`] = "none";
         }
         
-        // 낮의 연산 정산 문구를 상단 배너 홀더(morning_report)에 대입 주입
         updates['game/morning_report'] = reports.join("\n");
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
         updates['game/target_on_trial'] = 'none';
-        updates['game/last_popup_alert_text'] = popupAlertText; // 학생 화면에 띄울 리얼타임 전역 팝업 연동 멘트 전송
+        updates['game/last_popup_alert_text'] = popupAlertText;
+        updates['game/shaman_ghost_votes'] = "none";
+        updates['game/trial_retry_count'] = 0; // 리셋
 
         getDb().ref().update(updates);
     });
@@ -282,7 +322,6 @@ function processNightActions() {
             if (p.role === 'mudang' && p.nightTarget && p.nightTarget !== 'none') nextShamanTargetUid = p.nightTarget;
         }
 
-        // [원본 연동 공식 4] 무당의 낮 유령 감별 집계 최종 바인딩 기입
         if (lastShamanTargetUid !== "none" && players[lastShamanTargetUid]) {
             let citizenVotes = 0; let mafiaVotes = 0;
             for (let gId in ghostVotes) {
@@ -306,7 +345,6 @@ function processNightActions() {
 
         updates['game/shaman_target_uid'] = nextShamanTargetUid;
 
-        // 개별 직업 야간 능력 각인
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
@@ -323,7 +361,6 @@ function processNightActions() {
             if (line) updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${line}` : line;
         }
 
-        // 스파이 제보 데이터 처리
         if (spyTargetUid !== "none" && players[spyTargetUid]) {
             const spyT = players[spyTargetUid];
             let spyIdentityResult = "직업이 있습니다.";
@@ -346,10 +383,9 @@ function processNightActions() {
             }
         }
 
-        // 마피아 저격 정산
-        let max = 0; let finalMTarget = "none";
+        let maxM = 0; let finalMTarget = "none";
         for (let t in mafiaTargets) {
-            if (mafiaTargets[t] > max) { max = mafiaTargets[t]; finalMTarget = t; }
+            if (mafiaTargets[t] > maxM) { maxM = mafiaTargets[t]; finalMTarget = t; }
         }
 
         if (finalMTarget !== "none" && finalMTarget !== protectedUid) {
@@ -396,7 +432,6 @@ function processNightActions() {
             reports.push(`밤사이에 평화로운 정적만이 흘렀습니다.`);
         }
 
-        // 건달 폭행 대입
         if (gangsterTargetUid !== "none" && players[gangsterTargetUid]) {
             reports.push(`🥊 건달의 무자비한 폭행으로 인해 [${players[gangsterTargetUid].nickname}] 학생은 오늘 낮 투표권을 완전히 박탈당했습니다!`);
             updates['game/last_night_assault'] = gangsterTargetUid;
@@ -444,7 +479,6 @@ function processNightActions() {
         
         const nightSummaryReportText = reports.join("\n");
         updates['game/morning_report'] = nightSummaryReportText;
-        // [이전 코드 반영] 밤사이 정산 보고서를 전원 화면의 alert 알림으로 동시 사출
         updates['game/last_popup_alert_text'] = `[아침 알림 - 밤사이 사건 브리핑]\n\n${nightSummaryReportText}`;
         
         updates['game/turn'] = currentTurnVal + 1;
@@ -453,8 +487,6 @@ function processNightActions() {
         updates['game/last_night_suspects'] = Object.keys(morningSuspectCounts).length > 0 ? morningSuspectCounts : "none";
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
-        
-        // [이전 코드 반영] 마킹 버그 제거용 유령 투표함 하드 파기 리셋
         updates['game/shaman_ghost_votes'] = "none"; 
 
         getDb().ref().update(updates);
@@ -488,6 +520,8 @@ function handleResetToWaiting() {
         updates['game/last_popup_alert_text'] = "none";
         updates['game/shaman_target_uid'] = "none";
         updates['game/shaman_ghost_votes'] = "none";
+        updates['game/day_vote_retry_count'] = 0;
+        updates['game/trial_retry_count'] = 0;
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;

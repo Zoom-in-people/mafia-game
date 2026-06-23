@@ -132,17 +132,19 @@ function enterWaitingRoom() {
         }
     });
 
-    // 실시간 대기실 학생 명단 동적 동기화 리스너
-    getDb().ref('game/players').on('value', (snapshot) => {
-        if (!currentUser) return;
-        const players = snapshot.val() || {};
-        
-        // 실시간 추방(Kick) 감지 가드 (대기실 상태에서 강등되었을 때만 세션 폐쇄)
-        if (!currentUser.isAdmin && !players[currentUser.id] && currentStatus === 'waiting') {
-            alert("교사에 의해 대기실에서 추방되었습니다.");
-            clearSession();
-            return;
-        }
+// auth.js 내부의 enterWaitingRoom() 내 플레이어 감시 부분 수정 스니펫
+getDb().ref('game/players').on('value', (snapshot) => {
+    if (!currentUser) return;
+    const players = snapshot.val() || {};
+    
+    // [수정사항 6] 내 계정이 목록엔 없는데, 세션이 살아있고 현재 방이 대기실('waiting')인 경우에만 교사 추방 팝업 활성화
+    // 스스로 나가기 버튼(handleExit)을 누른 경우에는 clearSession()이 먼저 돌기 때문에 이 팝업창이 뜨지 않습니다.
+    if (!currentUser.isAdmin && !players[currentUser.id] && currentStatus === 'waiting' && localStorage.getItem('mafia_session')) {
+        alert("교사에 의해 대기실에서 추방되었습니다.");
+        clearSession();
+        return;
+    }
+    // ... 하단 생략 (기존 리스너 구성 유지)
 
         const playerListContainer = document.getElementById('player-list');
         if (!playerListContainer) return;

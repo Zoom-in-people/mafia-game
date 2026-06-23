@@ -1,16 +1,14 @@
 /**
  * 4. ui-render.js
- * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 완전 복구판
+ * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 수정본
  */
 
-// 대기실 난이도 조정
 function changeQuizLevel(level) {
     if (currentUser && currentUser.isAdmin) {
         getDb().ref('game/current_level').set(level);
     }
 }
 
-// 교사용 개별 비밀 가림막 해제/잠금 토글
 window.toggleAdminRoleView = function(uid) {
     adminRevealMap[uid] = !adminRevealMap[uid];
     renderGameScreen(); 
@@ -20,6 +18,17 @@ function triggerGameViewTransition() {
     const gameView = document.getElementById('game-view');
     const gameOverView = document.getElementById('game-over-view');
     const waitingView = document.getElementById('waiting-view');
+    const authView = document.getElementById('auth-view');
+
+    // [수정사항 5 반영] 교사가 리셋을 눌러 대기실('waiting')로 돌아갔을 때 모든 학생 기기 동시 복원
+    if (currentStatus === 'waiting') {
+        if (gameView) gameView.style.display = 'none';
+        if (gameOverView) gameOverView.style.display = 'none';
+        if (waitingView) waitingView.style.display = 'block';
+        if (authView) authView.style.display = 'none';
+        isGameScreenListenerAttached = false;
+        return;
+    }
 
     if (currentStatus === 'game_over') {
         if (gameView) gameView.style.display = 'none';
@@ -42,7 +51,6 @@ function triggerGameViewTransition() {
 
 let isGameScreenListenerAttached = false;
 
-// 원본 기반 실시간 전역 팝업(alert) 수신기 파이프라인 연동
 getDb().ref('game/last_popup_alert_text').on('value', (snapshot) => {
     const txt = snapshot.val();
     if (txt && txt !== "none" && currentUser) {
@@ -56,11 +64,9 @@ getDb().ref('game/last_popup_alert_text').on('value', (snapshot) => {
 function renderGameScreen() {
     if (!currentUser) return; 
 
-    // 중복 리스너 중복 가동 절대 차단 가드
     if (isGameScreenListenerAttached) return;
     isGameScreenListenerAttached = true;
 
-    // 파이어베이스 데이터 체인지 실시간 트리거 구독 (.on 가동으로 새로고침 0% 달성)
     getDb().ref('game').on('value', (snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
@@ -73,17 +79,25 @@ function renderGameScreen() {
         const lastNightAssault = gameData.last_night_assault || "none";
         const shamanTargetUid = gameData.shaman_target_uid || "none";
         const ghostVotes = gameData.shaman_ghost_votes || {};
+        const turn = gameData.turn || 1;
 
         if (status === 'waiting') {
-            isGameScreenListenerAttached = false; // 대기방 복원 시 리스너 락 해제
+            currentStatus = 'waiting';
+            triggerGameViewTransition();
             return;
+        }
+
+        // [요청사항 3 고정 해결] 상단 라벨이 계속 낮으로 박혀있던 바인딩 누락 전면 전이
+        const roundTitleEl = document.getElementById('round-title');
+        if (roundTitleEl) {
+            const phaseTxt = (status === 'day_discuss') ? "낮 ☀️" : "밤 🌙";
+            roundTitleEl.innerText = `제 ${turn}회차 - ${phaseTxt}`;
         }
 
         const msgBox = document.getElementById('status-message');
         const hintBox = document.getElementById('hint-display');
         const quizBox = document.getElementById('ghost-quiz-section');
         
-        // 내 세션 임시 누락 방어용 가드 객체 생성
         const myData = players[currentUser.id] || { isAlive: true, role: "none", dayVote: "none", trialDecision: "none" };
 
         const roleKorean = {
@@ -92,7 +106,6 @@ function renderGameScreen() {
             assemblyman: "국회의원 ⚖️", terrorist: "테러리스트 💣", gangster: "건달 🔨", lovers: "연인 💕"
         };
 
-        // 역사 히스토리 하단 정방향 누적 스크롤바 세팅
         const logContainer = document.getElementById('history-log-list');
         if (logContainer) {
             logContainer.innerHTML = historyLogs.map(log => `<div>• ${log}</div>`).join("");
@@ -107,6 +120,7 @@ function renderGameScreen() {
         const trialBtnsArea = document.getElementById('trial-interactive-buttons');
         const trialResultTxt = document.getElementById('trial-submit-result-text');
 
+        // [요청사항 2 해결] 처형/부활 표결 상자 UI 노출 및 소거 확실한 실시간 라우팅 분기
         if (status === 'day_discuss') {
             if (voteState === 'voting') {
                 if (stuVotePanel) {
@@ -126,9 +140,11 @@ function renderGameScreen() {
                     voteTitle.innerText = `🚨 최다 투표 대상 사형대 진입: [${accusedNick}]`;
                     
                     if (!currentUser.isAdmin) {
-                        voteAction.style.display = myData.isAlive ? 'block' : 'none';
+                        voteAction.style.display = 'block'; // 액션 영역 표시
                         
+                        // 분기 가드: 이미 처형/부활 선택이 none이 아닐 때 UI 입력단 폐쇄하고 문구 주입 보장
                         if (myData.trialDecision && myData.trialDecision !== "none") {
+                            if (trialBtnsArea) trialBtnsArea.style.style.setProperty('display', 'none', 'important');
                             if (trialBtnsArea) trialBtnsArea.style.display = 'none';
                             if (trialResultTxt) {
                                 trialResultTxt.style.display = 'block';
@@ -152,7 +168,6 @@ function renderGameScreen() {
             if (stuVotePanel) stuVotePanel.style.display = 'none';
         }
 
-        // ⭐ [완벽 복구] 교사용 동적 조종 버튼 패널 및 실시간 비밀 모니터 보드 원상복구 연동
         if (currentUser.isAdmin) {
             const adminPanel = document.getElementById('admin-game-controls');
             if (adminPanel) adminPanel.style.display = 'block';
@@ -161,7 +176,6 @@ function renderGameScreen() {
             document.getElementById('admin-finish-vote-btn').style.display = (status === 'day_discuss' && voteState === 'voting') ? 'block' : 'none';
             document.getElementById('admin-apply-execution-btn').style.display = (status === 'day_discuss' && voteState === 'execution_trial') ? 'block' : 'none';
 
-            // 교사용 단계 변환 버튼 글자 고정
             const nextBtn = document.getElementById('next-stage-btn');
             if (nextBtn) nextBtn.innerText = (status === 'night_action') ? "🌙 밤 종료" : "밤으로 단계 이동";
 
@@ -198,19 +212,23 @@ function renderGameScreen() {
         const rankBtn = document.getElementById('rank-btn');
         if (rankBtn) rankBtn.style.display = (status === 'day_discuss') ? 'block' : 'none';
 
-        // 낮과 밤의 상단 인게임 텍스트 출력 교차 렌더링부
         if (status === 'day_discuss') {
             if (msgBox) { msgBox.innerText = report; msgBox.className = "alert-box"; }
             
-            // 낮 시간 유령 전용 영매 감별 보드 활성화
+            // [요청사항 4 반영] 유령 전용 무당 영매 신호 수신기 버그 교정 및 수정 버튼 구현
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
                     quizBox.style.display = 'block';
                     document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
                     document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}]에 대해 알려달라고 기도를 올렸습니다.\n이 자의 영혼 진영 소속을 감별하여 투표해 주세요!`;
                     
+                    // 버그 수정: ghostVotes 전체 노드 매핑 오류를 고치고 내 UID 패스로 정확하게 판정
                     if (ghostVotes && ghostVotes[currentUser.id]) {
-                        document.getElementById('quiz-options').innerHTML = `<div style='color:#7b1fa2; font-weight:bold; font-size:12px;'>감별 투표 완료: [${ghostVotes[currentUser.id] === 'citizen_side' ? '시민편' : '마피아편'}]을 마킹했습니다.</div>`;
+                        const chosenSideText = ghostVotes[currentUser.id] === 'citizen_side' ? '시민진영 소속이다⚪' : '마피아진영 소속이다🔴';
+                        document.getElementById('quiz-options').innerHTML = `
+                            <div style='color:#7b1fa2; font-weight:bold; font-size:14px; margin-bottom:10px;'>🔮 감별 선택 완료: [${chosenSideText}]</div>
+                            <button class="quiz-opt-btn" style="background-color:#607d8b;" onclick="handleClearShamanVote()">✏️ 선택 수정하기</button>
+                        `;
                     } else {
                         document.getElementById('quiz-options').innerHTML = `
                             <button class="quiz-opt-btn" onclick="submitGhostShamanVote('citizen_side')">⚪ 시민진영 소속이다</button>
@@ -226,7 +244,6 @@ function renderGameScreen() {
                 msgBox.className = "alert-box night";
             }
 
-            // 밤이 되면 과학 퀴즈 상자로 실시간 교체
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive) {
                     quizBox.style.display = 'block';
@@ -236,7 +253,6 @@ function renderGameScreen() {
             }
         }
 
-        // 인적 사항 이름 바인딩
         const myNickDisp = document.getElementById('my-nick-name');
         const myRoleNameDisp = document.getElementById('my-role-name');
         if (myNickDisp && myRoleNameDisp) {
@@ -249,7 +265,6 @@ function renderGameScreen() {
             }
         }
 
-        // 야간 개인 일지 기록 하단 적재 스크롤 세팅
         const logBox = document.getElementById('my-personal-log-box');
         if (logBox && !currentUser.isAdmin) {
             if (myData.personalLog && myData.personalLog !== "none") {
@@ -268,7 +283,6 @@ function renderGameScreen() {
             }
         }
 
-        // 28인 가변 격자판 실시간 드로잉
         const gridContainer = document.getElementById('player-grid');
         if (gridContainer) {
             gridContainer.innerHTML = '';
@@ -329,6 +343,7 @@ function handleGridCardClick(targetUid) {
                 alert("당신은 어젯밤 건달에게 폭행을 당해 오늘 낮 투표를 하실 수 없습니다!");
                 return;
             }
+            // [요청사항 2 해결] 데이터가 즉각 쓰여지도록 확실히 주입 바인딩 보장
             getDb().ref(`game/players/${currentUser.id}/dayVote`).set(targetUid);
         } else if (gameData.status === 'night_action') {
             if (['citizen', 'lovers', 'soldier', 'assemblyman'].includes(currentRole)) {
@@ -339,6 +354,26 @@ function handleGridCardClick(targetUid) {
         }
     });
 }
+
+// [요청사항 2 해결] 찬반 재판 투표 처리용 실시간 바인딩 함수 명시 정의
+window.submitTrialDecision = function(decisionType) {
+    if (!currentUser || currentUser.isAdmin) return;
+    getDb().ref(`game/players/${currentUser.id}/trialDecision`).set(decisionType).then(() => {
+        renderGameScreen();
+    });
+};
+
+// [요청사항 4 해결] 무당 진영 유령 전용 투표 함수
+window.submitGhostShamanVote = function(side) {
+    if (!currentUser) return;
+    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side);
+};
+
+// [요청사항 4 해결] 유령 진영 선택지 수정 지우기 함수
+window.handleClearShamanVote = function() {
+    if (!currentUser) return;
+    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove();
+};
 
 function generateGhostQuiz(level) {
     const pool = quizBank[level] || quizBank["2-1"];
