@@ -368,3 +368,43 @@ button:hover { opacity: 0.9; }
 .modal-scroll-area p { margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
 .close-modal { position: absolute; top: 8px; right: 12px; font-size: 22px; font-weight: bold; cursor: pointer; color: #aaa; }
 .close-modal:hover { color: black; }
+
+/* style.css 맨 아래에 추가해 줄 가독성 보강 코드 */
+
+/* 대기실 전용: 교사용 추방 버튼 스타일 최적화 */
+.kick-btn {
+    background-color: #d32f2f !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    font-size: 11px !important;
+    padding: 3px 8px !important;
+    cursor: pointer;
+    width: auto !important;
+    margin: 0 0 0 10px !important;
+    line-height: 1;
+}
+.kick-btn:hover {
+    background-color: #b71c1c !important;
+}
+
+/* 유령 세션 상단 타이틀 가독성 하이라이트 */
+#ghost-mission-title {
+    color: #4a148c;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #ce93d8;
+    padding-bottom: 4px;
+    text-align: center;
+}
+
+/* 재판대 최종 결정 제출 후 나타나는 안내 안내판 양식 */
+#trial-submit-result-text {
+    background-color: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: center;
+    margin-top: 10px;
+}
