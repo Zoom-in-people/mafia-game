@@ -3,7 +3,7 @@
  * 게임 시작(직업 분배), 낮/밤 페이즈 제어, 특수 직업 연산 정산 엔진
  */
 
-// 게임 시작 및 직업 난수 분배 연산
+// 게임 시작 및 직업 난수 분배 연산 (직업 증발 버그 전면 수정)
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
@@ -15,39 +15,32 @@ function handleStartGame() {
         if (total < 1) return alert('게임에 참여할 학생이 최소 1명 이상 필요합니다.');
 
         let rolePool = [];
-        
-        // 1. 마피아 수 상한 설정 대입
         const mafiaCount = parseInt(document.getElementById('cfg-mafia').value) || 1;
         for (let i = 0; i < mafiaCount; i++) rolePool.push("mafia");
 
-        // 2. 연인 세팅 체크 시 2명 고정 배정
         if (document.getElementById('cfg-lovers').checked) {
             rolePool.push("lovers"); rolePool.push("lovers");
         }
 
-        // 3. 나머지 체크된 특수 직업들 풀에 추가
         const singleRoles = ["spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster"];
         singleRoles.forEach(roleId => {
             const chk = document.getElementById(`cfg-${roleId}`);
             if (chk && chk.checked) rolePool.push(roleId);
         });
 
-        // 인원 초과 가드 조절
         if (rolePool.length > total) {
             alert(`[알림] 설정된 특수직업 정원이 접속 인원보다 많아, 참여 순서대로 자동 조정 분배됩니다.`);
             rolePool = rolePool.slice(0, total);
         }
 
-        // 모자란 자리는 모두 일반 시민으로 채우기
         while (rolePool.length < total) rolePool.push("citizen");
 
-        // 4. 무작위 셔플 (피셔-예이츠 알고리즘)
         for (let i = rolePool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];
         }
 
-        // 5. 파이어베이스 일괄 동기화 업데이트 객체 생성
+        // [★직업 none 방쇄 조치] 비동기 체인 순서를 보장하기 위해 맵 구조가 아닌 순수 단일 일괄 업데이트 방식으로 데이터 동시 각인
         const updates = {};
         uids.forEach((uid, index) => {
             updates[`game/players/${uid}/role`] = rolePool[index];
@@ -55,14 +48,13 @@ function handleStartGame() {
             updates[`game/players/${uid}/nightTarget`] = "none";
             updates[`game/players/${uid}/suspect`] = "none";
             updates[`game/players/${uid}/dayVote`] = "none";
-            updates[`game/players/${uid}/soldierLife`] = 2; // 군인 목숨 수 초기화
+            updates[`game/players/${uid}/soldierLife`] = 2;
             updates[`game/players/${uid}/personalLog`] = "none";
             updates[`game/players/${uid}/deathReason`] = "none";
             updates[`game/players/${uid}/trialDecision`] = "none";
         });
 
-        // 글로벌 게임 상태 초기화
-        updates['game/status'] = 'day_discuss';
+        // 인게임 세션 글로벌 변수들도 한 번에 묶어서 DB에 밀어 넣습니다
         updates['game/vote_state'] = 'none';
         updates['game/target_on_trial'] = 'none';
         updates['game/turn'] = 1;
@@ -76,7 +68,11 @@ function handleStartGame() {
         updates['game/shaman_ghost_votes'] = "none";
 
         adminRevealMap = {}; 
-        getDb().ref().update(updates);
+        
+        // 직업과 세팅 데이터가 확실하게 기록된 후, 마지막 순서로 status를 바꿔 강제 뷰포트 전환을 유도합니다
+        getDb().ref().update(updates).then(() => {
+            getDb().ref('game/status').set('day_discuss');
+        });
     });
 }
 
@@ -98,7 +94,7 @@ function serverStartDayVote() {
             updates[`game/players/${id}/trialDecision`] = "none";
         }
         updates['game/vote_state'] = 'voting';
-        updates['game/shaman_ghost_votes'] = "none"; // 유령 투표 초기화
+        updates['game/shaman_ghost_votes'] = "none"; 
         getDb().ref().update(updates);
     });
 }
@@ -112,7 +108,6 @@ function serverFinishDayVote() {
         
         let tally = {};
         for (let id in players) {
-            // 건달에게 폭행당한 학생은 투표 무효 정산 가드
             if (id === lastNightAssault) continue;
 
             let v = players[id].dayVote;
@@ -170,21 +165,17 @@ function serverCalculateExecution() {
         let reports = []; let updates = {};
         const sideText = (targetUser.role === 'mafia' || targetUser.role === 'spy') ? "마피아 진영🔴" : "시민 진영⚪";
 
-        // 찬성이 반대보다 많거나 같으면 처형 진행
         if (exeCount >= revCount) {
-            // [체인 1] 국회의원 면책특권 발동 생존
             if (targetUser.role === 'assemblyman') {
-                reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n국회의원 면책특권 발동으로 [${targetUser.nickname}] 학생이 즉시 사면되어 부활 생존했습니다!`);
+                reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n국회의원 면책특권 발동으로 [${targetUser.nickname}] 학생이 부활 생존했습니다!`);
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (국회의원) 면책특권 발동 생존`);
             } 
-            // [체인 2] 테러리스트 자폭 동반 사망 체인
             else if (targetUser.role === 'terrorist') {
                 updates[`game/players/${targetUid}/isAlive`] = false;
                 updates[`game/players/${targetUid}/deathReason`] = "투표 처형";
                 historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] (테러리스트) 투표 처형`);
                 reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n[${targetUser.nickname}] 학생은 처형되었습니다! (해당 학생은 ${sideText} 이었습니다.)`);
 
-                // 나를 투표로 지목했고 + 찬성표를 던진 살아있는 후보군 추출
                 let AvengerPool = [];
                 for (let id in players) {
                     if (players[id].dayVote === targetUid && players[id].trialDecision === 'execute' && players[id].isAlive) {
@@ -199,11 +190,9 @@ function serverCalculateExecution() {
                     reports.push(`💥 테러리스트 자폭 복수 발동!\n나를 사형대에 올리고 처형에 찬성한 [${players[randomVictimUid].nickname}] 학생을 길동무 삼아 동반 사망했습니다!`);
                 }
             } 
-            // 일반 처형
             else {
                 updates[`game/players/${targetUid}/isAlive`] = false;
                 updates[`game/players/${targetUid}/deathReason`] = "투표 처형";
-                historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 학생 투표 처형`);
                 reports.push(`[최종 재판 결과] 찬성 ${exeCount}표 / 반대 ${revCount}표\n[${targetUser.nickname}] 학생은 최종 처형되었습니다! (해당 학생은 ${sideText} 이었습니다.)`);
             }
         } else {
@@ -211,7 +200,6 @@ function serverCalculateExecution() {
             historyLogs.push(`제 ${turn}회차 낮: [${targetUser.nickname}] 찬반 재판 부활 생존`);
         }
 
-        // 생존 정원 체크 및 승리 판정 연산
         let aliveMafia = 0; let aliveCitizen = 0;
         for (let id in players) {
             let stillAlive = players[id].isAlive;
@@ -226,10 +214,9 @@ function serverCalculateExecution() {
         } else if (aliveMafia >= aliveCitizen) {
             updates['game/status'] = 'game_over'; updates['game/winner'] = 'mafia_win';
         } else {
-            updates['game/status'] = 'night_action'; // 생존 시 밤 상태로 대기
+            updates['game/status'] = 'night_action'; 
         }
 
-        // 상태값 리셋
         for (let id in players) {
             updates[`game/players/${id}/dayVote`] = "none";
             updates[`game/players/${id}/trialDecision`] = "none";
@@ -244,13 +231,11 @@ function serverCalculateExecution() {
     });
 }
 
-// 교사용 밤 단계 -> 다음 낮 단계 전환 수동 정산 엔진 트리거
 function handleNextStage() {
     if (!currentUser || !currentUser.isAdmin) return;
     processNightActions();
 }
 
-// 밤 동안 누적된 모든 직업 행동 정산 메인 코어 연산 함수
 function processNightActions() {
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
@@ -264,7 +249,6 @@ function processNightActions() {
         let mafiaTargets = {}; let protectedUid = "none";
         let spyTargetUid = "none"; let gangsterTargetUid = "none"; let nextShamanTargetUid = "none"; 
 
-        // 1. 역할별 지목 타겟 수집 루프
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive) continue;
@@ -275,7 +259,6 @@ function processNightActions() {
             if (p.role === 'mudang' && p.nightTarget && p.nightTarget !== 'none') nextShamanTargetUid = p.nightTarget;
         }
 
-        // [무당 연산 체인] 지난 밤 지정된 대상을 향한 유령들의 낮 서명 집계 정산
         if (lastShamanTargetUid !== "none" && players[lastShamanTargetUid]) {
             let citizenVotes = 0; let mafiaVotes = 0;
             for (let gId in ghostVotes) {
@@ -296,7 +279,6 @@ function processNightActions() {
         }
         updates['game/shaman_target_uid'] = nextShamanTargetUid;
 
-        // 2. 개별 직업 일지장 단독 피드백 기입 정산 (경찰, 사립탐정, 스파이)
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
@@ -310,7 +292,6 @@ function processNightActions() {
             if (line) updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${line}` : line;
         }
 
-        // 스파이가 조사한 구체적 직업 마피아와 실시간 공유 기록화
         if (spyTargetUid !== "none" && players[spyTargetUid]) {
             const spyT = players[spyTargetUid];
             let spyIdentityResult = spyT.role === 'mafia' ? "마피아 본인" : (spyT.role === 'spy' ? "스파이 동료" : `${spyT.role} 직업군`);
@@ -322,22 +303,17 @@ function processNightActions() {
             }
         }
 
-        // 3. 마피아 야간 사격 타겟 다득표 연산
         let max = 0; let finalMTarget = "none";
         for (let t in mafiaTargets) {
             if (mafiaTargets[t] > max) { max = mafiaTargets[t]; finalMTarget = t; }
         }
 
-        // 4. 습격 충돌 판정 매트릭스 (의사 보호 / 군인 방어 / 테러리스트 자폭 반격)
         if (finalMTarget !== "none" && finalMTarget !== protectedUid) {
             const targetUser = players[finalMTarget];
-            // 군인 1회 방패막이
             if (targetUser.role === 'soldier' && targetUser.soldierLife > 1) {
                 updates[`game/players/${finalMTarget}/soldierLife`] = 1;
                 reports.push(`🪖 군인 [${targetUser.nickname}] 학생이 밤사이 마피아의 기습 엄습을 강인하게 방어해냈습니다!`);
-            } 
-            // 테러리스트 밤 습격 시 자폭 동반폭사 체인
-            else if (targetUser.role === 'terrorist') {
+            } else if (targetUser.role === 'terrorist') {
                 deadList.push(finalMTarget);
                 let mafiaIds = [];
                 for (let mId in players) { if (players[mId].role === 'mafia' && players[mId].isAlive) mafiaIds.push(mId); }
@@ -347,9 +323,7 @@ function processNightActions() {
                     updates[`game/players/${deadMafia}/deathReason`] = "테러 자폭 복수";
                     reports.push(`💥 테러리스트 밤 습격 반격!\n테러리스트[${targetUser.nickname}]와 습격해온 마피아[${players[deadMafia].nickname}] 학생이 야간 폭사로 함께 사망했습니다.`);
                 }
-            } 
-            // 피습 사망 처리
-            else {
+            } else {
                 deadList.push(finalMTarget);
                 updates[`game/players/${finalMTarget}/deathReason`] = "마피아 피습";
                 reports.push(`밤사이에 발생한 참혹한 피습 사건으로 인해 [${targetUser.nickname}] 학생이 사망했습니다.`);
@@ -360,21 +334,18 @@ function processNightActions() {
             reports.push(`밤사이에 평화로운 정적만이 흘렀습니다.`);
         }
 
-        // 5. 건달 폭행 가드 버퍼 대입
         if (gangsterTargetUid !== "none" && players[gangsterTargetUid]) {
-            reports.push(`🔨 건달의 무자비한 협박 폭행으로 인해 [${players[gangsterTargetUid].nickname}] 학생은 오늘 낮 투표권이 박탈(봉쇄)되었습니다!`);
+            reports.push(`🥊 건달의 무자비한 협박 폭행으로 인해 [${players[gangsterTargetUid].nickname}] 학생은 오늘 낮 투표권이 박탈(봉쇄)되었습니다!`);
             updates['game/last_night_assault'] = gangsterTargetUid;
         } else {
             updates['game/last_night_assault'] = "none";
         }
 
-        // 사망 명단 반영 루프
         deadList.forEach(d => {
             updates[`game/players/${d}/isAlive`] = false;
             historyLogs.push(`제 ${currentTurnVal}회차 밤: [${players[d].nickname}] 학생 사망`);
         });
 
-        // 최종 진영 인원 체크 승리 수렴 판정
         let mCount = 0; let cCount = 0;
         for (let id in players) {
             let state = players[id].isAlive;
@@ -389,10 +360,9 @@ function processNightActions() {
         } else if (mCount >= cCount) {
             updates['game/status'] = 'game_over'; updates['game/winner'] = 'mafia_win';
         } else {
-            updates['game/status'] = 'day_discuss'; // 생존 시 다음 낮 토론 페이즈로 전환
+            updates['game/status'] = 'day_discuss'; 
         }
 
-        // 초기화 데이터 적재 이월
         for (let id in players) {
             updates[`game/players/${id}/nightTarget`] = "none";
             updates[`game/players/${id}/dayVote`] = "none";
@@ -407,7 +377,6 @@ function processNightActions() {
     });
 }
 
-// 대기실 리셋 복원 세션 함수
 function handleResetToWaiting() {
     getDb().ref('game/players').get().then((snapshot) => {
         const players = snapshot.val() || {};
@@ -433,7 +402,7 @@ function handleResetToWaiting() {
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;
-            location.reload(); // 싱크 안정화를 위한 강제 리로드 리셋
+            location.reload(); 
         });
     });
 }

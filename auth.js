@@ -32,7 +32,6 @@ function handleSignup() {
     if (!id || !pw || !nick) return alert('모든 필드를 입력해 주세요.');
     if (id === 'admin') return alert('admin 이라는 아이디는 생성 불가합니다.');
 
-    // 전체 계정을 조회하여 닉네임 중복 체크 가드 작동
     getDb().ref(`accounts`).get().then((snapshot) => {
         const accounts = snapshot.val() || {};
         for (let accId in accounts) {
@@ -45,7 +44,6 @@ function handleSignup() {
         if (snapId.exists()) {
             alert('이미 누군가 사용 중인 아이디입니다.');
         } else {
-            // 중복 통과 시 가입 처리
             getDb().ref(`accounts/${id}`).set({ pw, nick }).then(() => {
                 alert('회원가입 완료! 로그인 화면으로 이동합니다.');
                 document.getElementById('signup-id').value = '';
@@ -62,7 +60,6 @@ function handleLogin() {
     const id = document.getElementById('login-id').value.trim();
     const pw = document.getElementById('login-pw').value.trim();
 
-    // 교사용 마스터 계정 바인딩
     if (id === 'admin' && pw === 'teacherpw') {
         currentUser = { id: 'admin', nick: '선생님', isAdmin: true };
         localStorage.setItem('mafia_session', JSON.stringify(currentUser));
@@ -70,7 +67,6 @@ function handleLogin() {
         return;
     }
 
-    // 학생 계정 검증
     getDb().ref(`accounts/${id}`).get().then((snapshot) => {
         if (snapshot.exists() && snapshot.val().pw === pw) {
             currentUser = { id: id, nick: snapshot.val().nick, isAdmin: false };
@@ -88,12 +84,10 @@ function enterWaitingRoom() {
     document.getElementById('waiting-view').style.display = 'block';
     document.getElementById('global-exit-btn').style.display = 'block';
 
-    // 교사 로그인 시 세팅 컨트롤러 노출
     if (currentUser.isAdmin) {
         document.getElementById('admin-controls').style.display = 'block';
     }
 
-    // 학생 로그인 시 대기실 DB 노드에 참가 기록 등록/초기화
     if (!currentUser.isAdmin) {
         getDb().ref(`game/players/${currentUser.id}`).set({
             nickname: currentUser.nick,
@@ -106,12 +100,11 @@ function enterWaitingRoom() {
         });
     }
 
-    // 실시간 접속 인원 및 명단 동적 동기화 리스너 (.on)
+    // 실시간 접속 인원 및 명단 동적 동기화 리스너
     getDb().ref('game/players').on('value', (snapshot) => {
         if (!currentUser) return;
         const players = snapshot.val() || {};
         
-        // 실시간 추방 감지 가드 (내가 명단에서 지워졌다면 즉시 추방 처리)
         if (!currentUser.isAdmin && !players[currentUser.id]) {
             alert("교사에 의해 대기실에서 추방되었습니다.");
             clearSession();
@@ -127,7 +120,6 @@ function enterWaitingRoom() {
         for (let id in players) {
             count++;
             const player = players[id];
-            // 교사 계정에게만 추방 버튼 활성화 및 인라인 바인딩
             const kickElement = currentUser.isAdmin ? `<button class="kick-btn" onclick="serverKickPlayer('${id}')" style="margin-left: 10px; padding: 2px 8px; background-color: #c62828; font-size: 11px; width: auto;">추방</button>` : "";
             playerListContainer.innerHTML += `<div class="player-card" style="padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;"><span>${player.nickname}</span>${kickElement}</div>`;
         }
@@ -136,10 +128,10 @@ function enterWaitingRoom() {
         if (countDisp) countDisp.innerText = count;
     });
 
-    // 이미 진행 중인 게임이 있다면 도중에 새로고침해도 인게임 뷰로 강제 전환
-    getDb().ref('game/status').get().then((snap) => {
-        const s = snap.val();
-        if (s && s !== 'waiting') {
+    // [★버그 즉시 해결 핵심 코드] .get()이 아닌 실시간 감시 리스너(.on)로 전환배치하여 교사가 시작을 누르는 순간 전원 자동 강제 화면이동 연출
+    getDb().ref('game/status').on('value', (snapshot) => {
+        currentStatus = snapshot.val();
+        if (currentStatus && currentStatus !== 'waiting') {
             if (typeof triggerGameViewTransition === 'function') {
                 triggerGameViewTransition();
             }
@@ -170,7 +162,6 @@ function handleExit() {
     }
 }
 
-// 로컬 세션 제거 후 새로고침 초기화
 function clearSession() {
     localStorage.removeItem('mafia_session');
     currentUser = null;
