@@ -167,7 +167,6 @@ button:hover { opacity: 0.9; }
     margin-bottom: 12px;
 }
 
-/* [요청사항 1 반영] 교사 관전 및 모든 스크린에서 닉네임 카드를 더욱 컴팩트하고 작게 극대화 축소 */
 #player-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr); 
@@ -175,7 +174,6 @@ button:hover { opacity: 0.9; }
     margin-top: 12px;
 }
 
-/* [요청사항 1 반영] 폰트 크기와 패딩을 최소화하여 조밀한 28인 전용 격자 구현 */
 .grid-card {
     background: #ffffff;
     border: 1px solid #ccc;
@@ -194,7 +192,6 @@ button:hover { opacity: 0.9; }
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-/* 긴 닉네임이 잘리지 않고 요청대로 2줄~3줄 자연스럽게 래핑되도록 유지 */
 .grid-card span {
     width: 100%;
     white-space: normal;

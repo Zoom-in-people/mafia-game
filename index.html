@@ -7,9 +7,11 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 언제나 우측 상단에 떠 있는 전역 나가기 버튼 -->
     <button id="global-exit-btn" onclick="handleExit()" style="display: none;">나가기</button>
 
     <div id="app">
+        <!-- [1구역] 인증 화면 -->
         <div id="auth-view" class="view">
             <h2>학교 마피아</h2>
             <div id="login-section">
@@ -29,6 +31,7 @@
             </div>
         </div>
 
+        <!-- [2구역] 실시간 대기실 화면 -->
         <div id="waiting-view" class="view" style="display: none;">
             <div class="header-info">
                 <h2>대기실 (<span id="player-count">0</span>명 접속 중)</h2>
@@ -48,7 +51,7 @@
                 </div>
 
                 <h5 style="margin: 8px 0 4px 0;">🎭 직업 정원 설정</h5>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; font-size: 14px; text-align: left; background: white; padding: 15px; border-radius: 6px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; font-size: 14px; text-align: left; background: white; padding: 15px; border-radius: 6px;">
                     <div>🔴 마피아 수: <input type="number" id="cfg-mafia" value="1" min="1" style="width: 50px; padding: 4px;">명</div>
                     <div>💕 연인(부부): <input type="checkbox" id="cfg-lovers" checked></div>
                     <div>🕵️‍♂️ 스파이: <input type="checkbox" id="cfg-spy" checked></div>
@@ -68,6 +71,7 @@
             <div id="player-list"></div>
         </div>
 
+        <!-- [3구역] 본 게임 화면 -->
         <div id="game-view" class="view" style="display: none;">
             <div id="game-history-box" class="history-container">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
@@ -83,6 +87,7 @@
                 <div id="hint-display" class="hint-box" style="display: none;"></div>
             </div>
 
+            <!-- 실시간 낮 투표 안내 패널 -->
             <div id="student-vote-panel" class="vote-alert-box" style="display: none;">
                 <h4 id="vote-panel-title">🗳️ 현재 낮 의심자 투표가 개시되었습니다!</h4>
                 <p id="vote-panel-desc">아래 학생 격자판에서 마피아로 의심되는 친구 카드를 터치 선택해 주세요.</p>
@@ -95,6 +100,7 @@
                 </div>
             </div>
 
+            <!-- 교사 전용 가림막 기능 탑재 테이블 -->
             <div id="admin-secret-monitor" class="rank-box" style="display: none; background-color: #fff3e0; border: 1px solid #ffe0b2; margin-bottom: 15px;">
                 <h4 style="margin: 0 0 8px 0; color: #e65100;">👁️ 교사 실시간 직업 현황판 (직업 클릭 시 토글)</h4>
                 <div class="table-container">
@@ -111,11 +117,13 @@
                 </div>
             </div>
 
+            <!-- 본인 정보 상자 -->
             <div id="my-role-box">
                 <div style="font-size: 14px; opacity: 0.8; margin-bottom: 3px;">접속자: <span id="my-nick-name">조회중</span></div>
                 당신의 직업: <span id="my-role-name">확인 중...</span>
             </div>
 
+            <!-- 개인 능력 기록 일지장 -->
             <div id="my-personal-log-box" class="rank-box" style="background-color: #f9f1ff; border-color: #d1c4e9; margin-bottom: 12px; display: none;">
                 <h4 style="color: #4a148c; margin: 0 0 5px 0;">🔮 나의 밤 능력/조사 기록 일지</h4>
                 <div id="personal-log-list" style="font-size: 13px; text-align: left; max-height: 90px; overflow-y: auto; line-height: 1.5;"></div>
@@ -124,14 +132,17 @@
             <button id="rank-btn" onclick="toggleSuspectRank()" style="background-color: #0288d1; margin-bottom: 10px;">현재 의심 순위 보기</button>
             <div id="rank-list" class="rank-box" style="display: none;"></div>
 
+            <!-- 유령(사망자) 전용 퀴즈 섹션 -->
             <div id="ghost-quiz-section" class="quiz-container" style="display: none;">
                 <h4>👻 유령 전용 미션 (정답 시 단서 획득)</h4>
                 <div id="quiz-question">문제를 불러오는 중...</div>
                 <div id="quiz-options"></div>
             </div>
 
+            <!-- 28인 그리드판 -->
             <div id="player-grid"></div>
 
+            <!-- 교사용 제어 패널 -->
             <div id="admin-game-controls" style="display: none; margin-top: 20px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
                 <h4 style="margin-top: 0; color:#333;">🎬 교사 낮 토론/투표 제어 컨트롤러</h4>
                 <div id="admin-step-buttons" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
@@ -146,6 +157,7 @@
             </div>
         </div>
 
+        <!-- [4구역] 게임 종료 화면 -->
         <div id="game-over-view" class="view" style="display: none;">
             <h2 id="winner-title" style="font-size: 28px; text-align: center; margin-bottom: 10px;">🎉 게임 종료 🎉</h2>
             <div id="final-report" class="alert-box" style="margin-bottom: 25px; text-align: center;"></div>
@@ -169,6 +181,7 @@
         </div>
     </div>
 
+    <!-- 직업 가이드 모달 팝업 -->
     <div id="role-guide-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close-modal" onclick="closeRoleGuide()">&times;</span>
@@ -180,17 +193,17 @@
             <div class="modal-scroll-area">
                 <div id="guide-tab-mafia" class="tab-panel">
                     <p><strong>마피아 🔴</strong>: 밤마다 시민을 습격합니다.</p>
-                    <p><strong>스파이 🕵️‍♂️</strong>: 마피아 조력자입니다. 밤에 조사할 학생을 지목하면 다음날 낮 전체 공지로 직업 유무 판별 정보가 마피아 진영에 자동 전달됩니다.</p>
+                    <p><strong>스파이 🕵️‍♂️</strong>: 마피아 조력자입니다. 밤에 조사할 학생을 지목하면 결과 정보가 마피아 진영 일지장에만 비밀리에 전달됩니다. 마피아를 지목하면 상호 정체가 드러납니다.</p>
                 </div>
                 <div id="guide-tab-citizen" class="tab-panel" style="display: none;">
-                    <p><strong>경찰 👮</strong>: 밤마다 타겟이 마피아인지 조사합니다.</p>
+                    <p><strong>경찰 👮</strong>: 밤마다 타겟이 마피아 진영(마피아, 스파이)인지 아닌지 조사합니다.</p>
                     <p><strong>의사 🩺</strong>: 밤마다 1명을 마피아 습격으로부터 보호합니다.</p>
                     <p><strong>무당 🔮</strong>: 밤에 조사 대상의 정체가 시민 편인지 마피아 편인지 투시합니다.</p>
                     <p><strong>사립탐정 🔍</strong>: 지목한 대상의 밤 행동 동선을 추적합니다.</p>
-                    <p><strong>군인 🪖</strong>: 마피아 공격을 1회 방어합니다. 밤에는 의심스러운 플레이어를 지목하여 의심 여론을 모읍니다.</p>
+                    <p><strong>군인 🪖</strong>: 마피아 공격을 1회 방어하며, 방어 성공 시 정체가 전면 공개됩니다. 밤에는 의심 메모 투표를 남깁니다.</p>
                     <p><strong>국회의원 ⚖️</strong>: 낮 투표 사형 판정 시 1회 면제 능력을 가집니다.</p>
-                    <p><strong>테러리스트 💣</strong>: 처형 혹은 피습 시 대상을 길동무 삼아 자폭합니다.</p>
-                    <p><strong>건달 🔨</strong>: 밤에 협박해 다음 날 낮 상대의 투표권을 무효화합니다.</p>
+                    <p><strong>테러리스트 💣</strong>: 낮 투표시간에 최종 처형되면 생존자 중 무작위(랜덤)로 한 명을 길동무 삼아 자폭 동반 사망시키며, 밤에 마피아에게 저격당하면 마피아 1명을 자폭 처리합니다.</p>
+                    <p><strong>건달 🔨</strong>: 밤에 협박해 다음 날 낮 상대의 투표권을 완전히 박탈하고 투표 행위를 전면 봉쇄합니다.</p>
                     <p><strong>연인 💕</strong>: 서로의 정체를 아는 한 쌍입니다. 연인 중 한 명이 마피아에게 저격당하면 다른 연인이 대신 죽고 파트너를 살려냅니다. 밤에는 의심 가는 대상을 선택합니다.</p>
                     <p><strong>시민 ⚪</strong>: 특별한 능력은 없으나 밤에 마피아로 의심되는 사람을 선택하여 다음 날 낮에 의심 득표순 랭킹 통계를 만들어냅니다.</p>
                 </div>
