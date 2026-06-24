@@ -140,18 +140,20 @@ function renderGameScreen() {
                     if (!currentUser.isAdmin) {
                         voteAction.style.display = 'block';
                         
-                        if (myData.trialDecision && myData.trialDecision !== "none") {
-                            if (trialBtnsArea) trialBtnsArea.style.display = 'none';
-                            if (trialResultTxt) {
-                                trialResultTxt.style.display = 'block';
-                                trialResultTxt.innerText = myData.trialDecision === 'execute' ? "💀 처형 찬성을 선택하셨습니다." : "😇 부활 반대를 선택하셨습니다.";
-                            }
-                            voteDesc.innerText = "이미 재판 찬반 판결 서명을 완료했습니다.";
-                        } else {
-                            if (trialBtnsArea) trialBtnsArea.style.display = 'flex';
-                            if (trialResultTxt) trialResultTxt.style.display = 'none';
-                            voteDesc.innerText = "이 대상을 처형할지, 부활시킬지 찬반 투표를 진행합니다.";
-                        }
+                        // ui-render.js 내 renderGameScreen() 함수 내부 찬반 피드백 렌더링 조건문 수정
+if (myData.trialDecision && myData.trialDecision !== "none") {
+    if (trialBtnsArea) trialBtnsArea.style.display = 'none';
+    if (trialResultTxt) {
+        trialResultTxt.style.display = 'block';
+        // [교정] 선택 가림막 완료 안내 문구도 '처형'과 '부활'로 간결하게 맞춰 매핑했습니다
+        trialResultTxt.innerText = myData.trialDecision === 'execute' ? "💀 처형 판결을 최종 선택하셨습니다." : "😇 부활 판결을 최종 선택하셨습니다.";
+    }
+    voteDesc.innerText = "이미 재판 찬반 판결 서명을 완료했습니다.";
+} else {
+    if (trialBtnsArea) trialBtnsArea.style.display = 'flex';
+    if (trialResultTxt) trialResultTxt.style.display = 'none';
+    voteDesc.innerText = "이 대상을 처형할지, 부활시킬지 찬반 투표를 진행합니다.";
+}
                     } else {
                         voteDesc.innerText = "학생들의 찬반 표결을 기다리고 있습니다.";
                         voteAction.style.display = 'none';
@@ -208,37 +210,42 @@ function renderGameScreen() {
         const rankBtn = document.getElementById('rank-btn');
         if (rankBtn) rankBtn.style.display = (status === 'day_discuss') ? 'block' : 'none';
 
+// ui-render.js 내부 renderGameScreen() 함수 내 낮/밤 전체 분기 교정본
+
         if (status === 'day_discuss') {
-            if (msgBox) { msgBox.innerText = report; msgBox.className = "alert-box"; }
+            if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
             
-            // [★3번 버그 완벽 타격 해결] 낮 유령 무당 진영 감별 서명보드 및 락 가드 수정 패치
+            // 무당 영매 제어 가드 구역
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
                     quizBox.style.display = 'block';
                     document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
                     document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}]에 대해 알려달라고 기도를 올렸습니다.\n이 자의 영혼 진영 소속을 감별하여 투표해 주세요!`;
                     
-                    // 단순 존재 유무가 아니라 문자열이나 데이터가 명확히 기입되어 있을 때만 마킹처리
-                    if (ghostVotes && ghostVotes[currentUser.id] && ghostVotes[currentUser.id] !== "none") {
+                    // 안전한 데이터 존재 스캔 비교 연산
+                    if (ghostVotes && ghostVotes[currentUser.id]) {
                         const chosenSideText = ghostVotes[currentUser.id] === 'citizen_side' ? '시민진영 소속이다⚪' : '마피아진영 소속이다🔴';
                         document.getElementById('quiz-options').innerHTML = `
                             <div style='color:#7b1fa2; font-weight:bold; font-size:14px; margin-bottom:10px;'>🔮 감별 선택 완료: [${chosenSideText}]</div>
                             <button class="quiz-opt-btn" style="background-color:#607d8b; width:100%; padding:10px;" onclick="handleClearShamanVote()">✏️ 선택 수정하기</button>
                         `;
                     } else {
-                        // 미투표 상태일 때 정확하게 능동형 투표 버튼 2개 노출 보장
                         document.getElementById('quiz-options').innerHTML = `
-                            <button class="quiz-opt-btn" style="margin-bottom:8px;" onclick="submitGhostShamanVote('citizen_side')">⚪ 시민진영 소속이다</button>
-                            <button class="quiz-opt-btn" onclick="submitGhostShamanVote('mafia_side')">🔴 마피아진영 소속이다</button>
+                            <button class="quiz-opt-btn" style="margin-bottom:8px; width:100%; padding:10px;" onclick="submitGhostShamanVote('citizen_side')">⚪ 시민진영 소속이다</button>
+                            <button class="quiz-opt-btn" style="width:100%; padding:10px;" onclick="submitGhostShamanVote('mafia_side')">🔴 마피아진영 소속이다</button>
                         `;
                     }
-                } else { quizBox.style.display = 'none'; }
+                } else {
+                    // 무당 신호 수신 대상이 없을 때는 영매 보드 내용물만 가림 처리
+                    quizBox.style.display = 'none';
+                }
             }
 
         } else if (status === 'night_action') {
+            // 잃어버렸던 밤 시간대 연동 체인을 제자리로 안전하게 복원시켰습니다.
             if (msgBox) {
-                msgBox.innerText = report ? `[재판 마감 보고서]\n${report}` : "밤이 되었습니다. 고유 능력을 발동할 대상을 찝어 주세요.";
                 msgBox.className = "alert-box night";
+                msgBox.innerText = report ? `[재판 마감 보고서]\n${report}` : "밤이 되었습니다. 고유 능력을 발동할 대상을 찝어 주세요.";
             }
 
             if (quizBox) {
@@ -246,7 +253,9 @@ function renderGameScreen() {
                     quizBox.style.display = 'block';
                     document.getElementById('ghost-mission-title').innerText = "👻 유령 전용 과학 미션 (정답 시 단서 게이지 누적)";
                     if (!currentQuiz) generateGhostQuiz(gameData.current_level || "2-1");
-                } else { quizBox.style.display = 'none'; }
+                } else {
+                    quizBox.style.display = 'none';
+                }
             }
         }
 
@@ -360,18 +369,23 @@ window.submitTrialDecision = function(decisionType) {
 };
 
 // [★3번 버그 완벽 해결] 무당 진영 유령 전용 투표 제출
+// [★버그 해결] 무당 진영 유령 전용 투표 제출 전역 개방
 window.submitGhostShamanVote = function(side) {
     if (!currentUser) return;
-    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side);
+    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side).then(() => {
+        alert("영혼의 지목 진영 서명이 제출되었습니다!");
+    });
 };
 
-// [★3번 버그 완벽 해결] 유령 진영 선택지 수정 지우기 모듈
+// [★버그 해결] window 객체에 직접 바인딩하여 '선택 수정하기' 버튼 클릭 시 작동 불능 현상 완벽 해결
 window.handleClearShamanVote = function() {
     if (!currentUser) return;
-    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove();
+    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove().then(() => {
+        alert("투표가 초기화되었습니다. 다시 선택해 주세요!");
+    });
 };
 
-// [★4번 버그 완전 소생 복구] 누적 의심 여론 통계 보기 전역 함수 재적재
+// [★오류 완벽 해결] 변수 인자명을 snap으로 통일하여 ReferenceError 원천 소멸
 window.toggleSuspectRank = function() {
     const rBox = document.getElementById('rank-list');
     if (!rBox) return;
@@ -383,7 +397,8 @@ window.toggleSuspectRank = function() {
 
     getDb().ref('game/last_night_suspects').get().then(snap => {
         rBox.innerHTML = '<h4>📢 어젯밤 누적 의심 여론 기록 (득표순 랭킹)</h4>';
-        const sData = snapshot ? snapshot.val() : snap.val();
+        // [교정] snapshot.val() 대신 상단 인자명과 일치하는 snap.val()로 명확히 수정했습니다.
+        const sData = snap.val();
         if (!sData || sData === "none") {
             rBox.innerHTML += '<div>통계가 없습니다.</div>';
         } else {
@@ -392,7 +407,7 @@ window.toggleSuspectRank = function() {
             });
         }
         rBox.style.display = 'block';
-    });
+    }).catch(err => console.error("랭킹 로드 오류:", err));
 };
 
 function generateGhostQuiz(level) {
