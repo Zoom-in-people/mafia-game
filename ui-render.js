@@ -1,6 +1,6 @@
 /**
  * 4. ui-render.js
- * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 (최종 버그 교정판)
+ * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 (전체 복구형 완벽판)
  */
 
 function changeQuizLevel(level) {
@@ -60,14 +60,12 @@ getDb().ref('game/last_popup_alert_text').on('value', (snapshot) => {
     }
 });
 
-// [★핵심 교정부] 리스너 구조를 완벽하게 개조하여 유령 투표 시 실시간 화면 리드로잉 보장
 function renderGameScreen() {
     if (!currentUser) return; 
 
     if (isGameScreenListenerAttached) return;
     isGameScreenListenerAttached = true;
 
-    // 감시 스코프를 전체 노드로 안전하게 유지
     getDb().ref('game').on('value', (snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
@@ -79,7 +77,7 @@ function renderGameScreen() {
         const hint = gameData.current_hint || "없음";
         const lastNightAssault = gameData.last_night_assault || "none";
         const shamanTargetUid = gameData.shaman_target_uid || "none";
-        const ghostVotes = gameData.shaman_ghost_votes || {}; // 실시간 유령 투표 노드 바인딩 가드
+        const ghostVotes = gameData.shaman_ghost_votes || {}; 
         const turn = gameData.turn || 1;
 
         if (status === 'waiting') {
@@ -165,7 +163,42 @@ function renderGameScreen() {
             if (stuVotePanel) stuVotePanel.style.display = 'none';
         }
 
-        // 낮 유령 구역 렌더링 파이프라인 (실시간 데이터 피드백 완벽 적용)
+        // [교구 필수] ⭐ 교사 전용 수동 제어 패널 버튼 및 실시간 가림막 현황판 스크립트 복원 완료
+        if (currentUser.isAdmin) {
+            const adminPanel = document.getElementById('admin-game-controls');
+            if (adminPanel) adminPanel.style.display = 'block';
+            
+            document.getElementById('admin-start-vote-btn').style.display = (status === 'day_discuss' && voteState === 'none') ? 'block' : 'none';
+            document.getElementById('admin-finish-vote-btn').style.display = (status === 'day_discuss' && voteState === 'voting') ? 'block' : 'none';
+            document.getElementById('admin-apply-execution-btn').style.display = (status === 'day_discuss' && voteState === 'execution_trial') ? 'block' : 'none';
+
+            const nextBtn = document.getElementById('next-stage-btn');
+            if (nextBtn) nextBtn.innerText = (status === 'night_action') ? "🌙 밤 종료" : "밤으로 단계 이동";
+
+            const monitor = document.getElementById('admin-secret-monitor');
+            const tableBody = document.getElementById('admin-live-roles-table');
+            if (monitor && tableBody) {
+                monitor.style.display = 'block';
+                let htmlRows = "";
+                for (let id in players) {
+                    const p = players[id]; const isRevealed = adminRevealMap[id];
+                    htmlRows += `
+                        <tr ${p.isAlive ? "" : "class='monitor-dead'"}>
+                            <td><b>${p.isAlive ? "🟢 생존" : "💀 유령"}</b></td>
+                            <td>${p.nickname}</td>
+                            <td>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    ${isRevealed ? `<span style='color:#c62828;'>${roleKorean[p.role]}</span>` : `<span style='color:#999;'>🙈 보안 가려짐</span>`}
+                                    <button class="secret-reveal-btn" onclick="toggleAdminRoleView('${id}')">${isRevealed ? '가리기' : '직업보기'}</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+                tableBody.innerHTML = htmlRows;
+            }
+        }
+
         if (status === 'day_discuss') {
             if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
             
@@ -175,7 +208,6 @@ function renderGameScreen() {
                     document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신 (진영 투표)";
                     document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}] 학생의 실제 직업이 무엇인지 물어보고 있습니다.\n아래 진영 카드 중 원하는 진영을 자유롭게 터치하여 투표해 주세요! (언제든 수정 가능)`;
                     
-                    // [★동기화 패치] DB 노드 변화를 실시간으로 스캔하여 로컬 스코프 변수에 바인딩
                     const myVote = (ghostVotes && ghostVotes[currentUser.id]) ? ghostVotes[currentUser.id] : "";
 
                     document.getElementById('quiz-options').innerHTML = `
@@ -223,7 +255,15 @@ function renderGameScreen() {
                 }
             }
         }
-// ... 이 하단 소스코드(교사 UI 및 격자 드로잉 등)는 기존 소스코드와 100% 동일하게 유지됩니다.
+
+        if (hintBox) {
+            if (hint !== "없음" && status === 'day_discuss') {
+                hintBox.innerText = `🔍 단서: ${hint}`; hintBox.style.display = 'block';
+            } else { hintBox.style.display = 'none'; }
+        }
+
+        const rankBtn = document.getElementById('rank-btn');
+        if (rankBtn) rankBtn.style.display = (status === 'day_discuss') ? 'block' : 'none';
 
         const myNickDisp = document.getElementById('my-nick-name');
         const myRoleNameDisp = document.getElementById('my-role-name');
@@ -301,41 +341,32 @@ function renderGameScreen() {
 }
 
 window.handleGridCardClick = function(targetUid) {
-    if (currentUser.isAdmin) return; // 교사는 클릭 불가
+    if (currentUser.isAdmin) return;
 
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
         const players = gameData.players || {};
         const myData = players[currentUser.id];
 
-        // 내가 플레이어 명단에 없거나 이미 사망한 유령이라면 격자 카드 클릭 무효화
         if (!myData || !myData.isAlive) return;
-
-        // 본인의 실제 직업명을 정확하게 변수에 할당 (에러 원인 제거)
         const myActualRole = myData.role || "none";
 
         if (gameData.status === 'day_discuss' && gameData.vote_state === 'voting') {
-            // [낮 의심자 투표 시간]
             if (gameData.last_night_assault === currentUser.id) {
                 alert("당신은 어젯밤 건달에게 폭행을 당해 오늘 낮 투표를 하실 수 없습니다!");
                 return;
             }
             getDb().ref(`game/players/${currentUser.id}/dayVote`).set(targetUid);
-
         } else if (gameData.status === 'night_action') {
-            // [밤 능력 사용 시간] - 시민 진영 계열과 마피아/특수직업 계열 분기 정밀 복구
             if (['citizen', 'lovers', 'soldier', 'assemblyman'].includes(myActualRole)) {
-                // 밤에 의심 메모를 남기는 직업군 (suspect 노드에 저장)
                 getDb().ref(`game/players/${currentUser.id}/suspect`).set(targetUid);
             } else {
-                // 고유 능력을 사용하는 직업군 (마피아 저격, 의사 힐, 경찰 조사, 건달 협박 등 nightTarget 노드에 저장)
                 getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid);
             }
         }
     }).catch(err => console.error("격자 카드 클릭 처리 오류:", err));
 };
 
-// [★1번, 2번 버그 완벽 타격 해결] 버튼과 연동되는 재판 찬반 제출 전역 연동 함수 선언
 window.submitTrialDecision = function(decisionType) {
     if (!currentUser || currentUser.isAdmin) return;
     getDb().ref(`game/players/${currentUser.id}/isAlive`).get().then(snap => {
@@ -344,27 +375,20 @@ window.submitTrialDecision = function(decisionType) {
     });
 };
 
-// ui-render.js 하단 전역 함수 바인딩부 교정 (동적 토글 스위칭 연동)
-
-// [★완벽 복구] 실제 직업과 관계없이 유령이 누르는 대로 실시간 즉시 반영 및 스위칭 수정 보장 함수
 window.submitGhostShamanVote = function(side) {
     if (!currentUser) return;
-    
-    // 파이어베이스에 즉시 값을 갱신하여 덮어쓰기 처리 (수정 버튼 불필요)
     getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side).then(() => {
         console.log("영혼의 진영 선택 완료: " + side);
-    }).catch(err => console.error("영매 투표 오류:", err));
-};
-
-// [★버그 해결] window 객체에 직접 바인딩하여 '선택 수정하기' 버튼 클릭 시 작동 불능 현상 완벽 해결
-window.handleClearShamanVote = function() {
-    if (!currentUser) return;
-    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove().then(() => {
-        alert("투표가 초기화되었습니다. 다시 선택해 주세요!");
     });
 };
 
-// [★오류 완벽 해결] 변수 인자명을 snap으로 통일하여 ReferenceError 원천 소멸
+window.handleClearShamanVote = function() {
+    if (!currentUser) return;
+    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove().then(() => {
+        console.log("투표 초기화 완료");
+    });
+};
+
 window.toggleSuspectRank = function() {
     const rBox = document.getElementById('rank-list');
     if (!rBox) return;
@@ -376,7 +400,6 @@ window.toggleSuspectRank = function() {
 
     getDb().ref('game/last_night_suspects').get().then(snap => {
         rBox.innerHTML = '<h4>📢 어젯밤 누적 의심 여론 기록 (득표순 랭킹)</h4>';
-        // [교정] snapshot.val() 대신 상단 인자명과 일치하는 snap.val()로 명확히 수정했습니다.
         const sData = snap.val();
         if (!sData || sData === "none") {
             rBox.innerHTML += '<div>통계가 없습니다.</div>';
