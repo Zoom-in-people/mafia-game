@@ -212,36 +212,46 @@ if (myData.trialDecision && myData.trialDecision !== "none") {
 
 // ui-render.js 내 renderGameScreen() 함수 내부 [낮 유령 영매 수신 구역] 전면 개조
 
+        // ui-render.js 내 renderGameScreen() 함수 내부 [낮 유령 영매 수신 구역] 교체
+
         if (status === 'day_discuss') {
             if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
             
-            // [★유령 진영 투표 낮 투표 방식으로 전면 대개조]
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
                     quizBox.style.display = 'block';
                     document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신 (진영 투표)";
                     document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}] 학생의 실제 직업이 무엇인지 물어보고 있습니다.\n아래 진영 카드 중 원하는 진영을 자유롭게 터치하여 투표해 주세요! (언제든 수정 가능)`;
                     
-                    // 내 UID로 투표된 값을 안전하게 추출 (비어있으면 빈 문자열)
+                    // 내 UID로 투표된 값을 안전하게 추출
                     const myVote = (ghostVotes && ghostVotes[currentUser.id]) ? ghostVotes[currentUser.id] : "";
 
-                    // 낮 투표 레이아웃과 완벽히 호환되는 토글형 카드 시스템 출력
+                    // [★시각적 피드백 극대화 개조] 선택 여부에 따라 배경색, 테러 효과, 폰트 두께, 그림자를 완벽히 분기
                     document.getElementById('quiz-options').innerHTML = `
-                        <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <div style="display: flex; gap: 14px; margin-top: 15px;">
                             <div class="grid-card ${myVote === 'citizen_side' ? 'my-selected' : ''}" 
-                                 style="flex: 1; border: 2px solid #4caf50; padding: 15px; font-weight: bold; cursor: pointer; text-align: center; background: #f9fff9;" 
+                                 style="flex: 1; border: ${myVote === 'citizen_side' ? '4px solid #1565c0' : '2px solid #4caf50'}; 
+                                        padding: 18px; font-weight: bold; cursor: pointer; text-align: center; 
+                                        background: ${myVote === 'citizen_side' ? '#e3f2fd' : '#f9fff9'}; 
+                                        color: ${myVote === 'citizen_side' ? '#1565c0' : '#333'};
+                                        box-shadow: ${myVote === 'citizen_side' ? 'inset 0 0 10px rgba(21,101,192,0.2), 0 4px 8px rgba(0,0,0,0.1)' : 'none'};
+                                        border-radius: 8px; transition: all 0.1s ease;" 
                                  onclick="submitGhostShamanVote('citizen_side')">
-                                 ⚪ 시민 진영 소속
+                                 ⚪ 시민 진영 소속 ${myVote === 'citizen_side' ? '📊' : ''}
                             </div>
                             <div class="grid-card ${myVote === 'mafia_side' ? 'my-selected' : ''}" 
-                                 style="flex: 1; border: 2px solid #e53935; padding: 15px; font-weight: bold; cursor: pointer; text-align: center; background: #fff9f9;" 
+                                 style="flex: 1; border: ${myVote === 'mafia_side' ? '4px solid #c62828' : '2px solid #e53935'}; 
+                                        padding: 18px; font-weight: bold; cursor: pointer; text-align: center; 
+                                        background: ${myVote === 'mafia_side' ? '#ffebee' : '#fff9f9'}; 
+                                        color: ${myVote === 'mafia_side' ? '#c62828' : '#333'};
+                                        box-shadow: ${myVote === 'mafia_side' ? 'inset 0 0 10px rgba(198,40,40,0.2), 0 4px 8px rgba(0,0,0,0.1)' : 'none'};
+                                        border-radius: 8px; transition: all 0.1s ease;" 
                                  onclick="submitGhostShamanVote('mafia_side')">
-                                 🔴 마피아 진영 소속
+                                 🔴 마피아 진영 소속 ${myVote === 'mafia_side' ? '📊' : ''}
                             </div>
                         </div>
                     `;
                 } else {
-                    // 무당 신호 타겟이 없을 때는 깔끔하게 가림 처리
                     quizBox.style.display = 'none';
                 }
             }
