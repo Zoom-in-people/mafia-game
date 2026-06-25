@@ -210,33 +210,38 @@ if (myData.trialDecision && myData.trialDecision !== "none") {
         const rankBtn = document.getElementById('rank-btn');
         if (rankBtn) rankBtn.style.display = (status === 'day_discuss') ? 'block' : 'none';
 
-// ui-render.js 내부 renderGameScreen() 함수 내 낮/밤 전체 분기 교정본
+// ui-render.js 내 renderGameScreen() 함수 내부 [낮 유령 영매 수신 구역] 전면 개조
 
         if (status === 'day_discuss') {
             if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
             
-            // 무당 영매 제어 가드 구역
+            // [★유령 진영 투표 낮 투표 방식으로 전면 대개조]
             if (quizBox) {
                 if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
                     quizBox.style.display = 'block';
-                    document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
-                    document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}]에 대해 알려달라고 기도를 올렸습니다.\n이 자의 영혼 진영 소속을 감별하여 투표해 주세요!`;
+                    document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신 (진영 투표)";
+                    document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}] 학생의 실제 직업이 무엇인지 물어보고 있습니다.\n아래 진영 카드 중 원하는 진영을 자유롭게 터치하여 투표해 주세요! (언제든 수정 가능)`;
                     
-                    // 안전한 데이터 존재 스캔 비교 연산
-                    if (ghostVotes && ghostVotes[currentUser.id]) {
-                        const chosenSideText = ghostVotes[currentUser.id] === 'citizen_side' ? '시민진영 소속이다⚪' : '마피아진영 소속이다🔴';
-                        document.getElementById('quiz-options').innerHTML = `
-                            <div style='color:#7b1fa2; font-weight:bold; font-size:14px; margin-bottom:10px;'>🔮 감별 선택 완료: [${chosenSideText}]</div>
-                            <button class="quiz-opt-btn" style="background-color:#607d8b; width:100%; padding:10px;" onclick="handleClearShamanVote()">✏️ 선택 수정하기</button>
-                        `;
-                    } else {
-                        document.getElementById('quiz-options').innerHTML = `
-                            <button class="quiz-opt-btn" style="margin-bottom:8px; width:100%; padding:10px;" onclick="submitGhostShamanVote('citizen_side')">⚪ 시민진영 소속이다</button>
-                            <button class="quiz-opt-btn" style="width:100%; padding:10px;" onclick="submitGhostShamanVote('mafia_side')">🔴 마피아진영 소속이다</button>
-                        `;
-                    }
+                    // 내 UID로 투표된 값을 안전하게 추출 (비어있으면 빈 문자열)
+                    const myVote = (ghostVotes && ghostVotes[currentUser.id]) ? ghostVotes[currentUser.id] : "";
+
+                    // 낮 투표 레이아웃과 완벽히 호환되는 토글형 카드 시스템 출력
+                    document.getElementById('quiz-options').innerHTML = `
+                        <div style="display: flex; gap: 12px; margin-top: 10px;">
+                            <div class="grid-card ${myVote === 'citizen_side' ? 'my-selected' : ''}" 
+                                 style="flex: 1; border: 2px solid #4caf50; padding: 15px; font-weight: bold; cursor: pointer; text-align: center; background: #f9fff9;" 
+                                 onclick="submitGhostShamanVote('citizen_side')">
+                                 ⚪ 시민 진영 소속
+                            </div>
+                            <div class="grid-card ${myVote === 'mafia_side' ? 'my-selected' : ''}" 
+                                 style="flex: 1; border: 2px solid #e53935; padding: 15px; font-weight: bold; cursor: pointer; text-align: center; background: #fff9f9;" 
+                                 onclick="submitGhostShamanVote('mafia_side')">
+                                 🔴 마피아 진영 소속
+                            </div>
+                        </div>
+                    `;
                 } else {
-                    // 무당 신호 수신 대상이 없을 때는 영매 보드 내용물만 가림 처리
+                    // 무당 신호 타겟이 없을 때는 깔끔하게 가림 처리
                     quizBox.style.display = 'none';
                 }
             }
@@ -368,13 +373,16 @@ window.submitTrialDecision = function(decisionType) {
     });
 };
 
-// [★3번 버그 완벽 해결] 무당 진영 유령 전용 투표 제출
-// [★버그 해결] 무당 진영 유령 전용 투표 제출 전역 개방
+// ui-render.js 하단 전역 함수 바인딩부 교정 (동적 토글 스위칭 연동)
+
+// [★완벽 복구] 실제 직업과 관계없이 유령이 누르는 대로 실시간 즉시 반영 및 스위칭 수정 보장 함수
 window.submitGhostShamanVote = function(side) {
     if (!currentUser) return;
+    
+    // 파이어베이스에 즉시 값을 갱신하여 덮어쓰기 처리 (수정 버튼 불필요)
     getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side).then(() => {
-        alert("영혼의 지목 진영 서명이 제출되었습니다!");
-    });
+        console.log("영혼의 진영 선택 완료: " + side);
+    }).catch(err => console.error("영매 투표 오류:", err));
 };
 
 // [★버그 해결] window 객체에 직접 바인딩하여 '선택 수정하기' 버튼 클릭 시 작동 불능 현상 완벽 해결
