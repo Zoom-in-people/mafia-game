@@ -1,13 +1,7 @@
 /**
  * 4. ui-render.js
- * 실시간 상태 감시 기반 렌더링 코어 및 교사용 제어기/현황판 (전체 복구형 완벽판)
+ * 실시간 상태 감시 기반 생존자 화면 및 교사용 제어반 렌더링 메인 코어
  */
-
-function changeQuizLevel(level) {
-    if (currentUser && currentUser.isAdmin) {
-        getDb().ref('game/current_level').set(level);
-    }
-}
 
 window.toggleAdminRoleView = function(uid) {
     adminRevealMap[uid] = !adminRevealMap[uid];
@@ -36,7 +30,7 @@ function triggerGameViewTransition() {
             const resetPanel = document.getElementById('admin-reset-controls');
             if (resetPanel) resetPanel.style.display = 'block';
         }
-        renderGameOverScreen();
+        if (typeof renderGameOverScreen === 'function') renderGameOverScreen();
         return;
     } else {
         if (gameOverView) gameOverView.style.display = 'none';
@@ -94,8 +88,6 @@ function renderGameScreen() {
 
         const msgBox = document.getElementById('status-message');
         const hintBox = document.getElementById('hint-display');
-        const quizBox = document.getElementById('ghost-quiz-section');
-        
         const myData = players[currentUser.id] || { isAlive: true, role: "none", dayVote: "none", trialDecision: "none" };
 
         const roleKorean = {
@@ -138,7 +130,6 @@ function renderGameScreen() {
                     
                     if (!currentUser.isAdmin) {
                         voteAction.style.display = 'block';
-                        
                         if (myData.trialDecision && myData.trialDecision !== "none") {
                             if (trialBtnsArea) trialBtnsArea.style.display = 'none';
                             if (trialResultTxt) {
@@ -163,7 +154,6 @@ function renderGameScreen() {
             if (stuVotePanel) stuVotePanel.style.display = 'none';
         }
 
-        // [교구 필수] ⭐ 교사 전용 수동 제어 패널 버튼 및 실시간 가림막 현황판 스크립트 복원 완료
         if (currentUser.isAdmin) {
             const adminPanel = document.getElementById('admin-game-controls');
             if (adminPanel) adminPanel.style.display = 'block';
@@ -199,61 +189,9 @@ function renderGameScreen() {
             }
         }
 
-        if (status === 'day_discuss') {
-            if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
-            
-            if (quizBox) {
-                if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
-                    quizBox.style.display = 'block';
-                    document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신 (진영 투표)";
-                    document.getElementById('quiz-question').innerText = `무당이 [${players[shamanTargetUid].nickname}] 학생의 실제 직업이 무엇인지 물어보고 있습니다.\n아래 진영 카드 중 원하는 진영을 자유롭게 터치하여 투표해 주세요! (언제든 수정 가능)`;
-                    
-                    const myVote = (ghostVotes && ghostVotes[currentUser.id]) ? ghostVotes[currentUser.id] : "";
-
-                    document.getElementById('quiz-options').innerHTML = `
-                        <div style="display: flex; gap: 14px; margin-top: 15px;">
-                            <div class="grid-card ${myVote === 'citizen_side' ? 'my-selected' : ''}" 
-                                 style="flex: 1; border: ${myVote === 'citizen_side' ? '4px solid #1565c0' : '2px solid #4caf50'}; 
-                                        padding: 18px; font-weight: bold; cursor: pointer; text-align: center; 
-                                        background: ${myVote === 'citizen_side' ? '#e3f2fd' : '#f9fff9'}; 
-                                        color: ${myVote === 'citizen_side' ? '#1565c0' : '#333'};
-                                        box-shadow: ${myVote === 'citizen_side' ? 'inset 0 0 10px rgba(21,101,192,0.2), 0 4px 8px rgba(0,0,0,0.1)' : 'none'};
-                                        border-radius: 8px; transition: all 0.1s ease;" 
-                                 onclick="submitGhostShamanVote('citizen_side')">
-                                 ⚪ 시민 진영 소속 ${myVote === 'citizen_side' ? '📊' : ''}
-                            </div>
-                            <div class="grid-card ${myVote === 'mafia_side' ? 'my-selected' : ''}" 
-                                 style="flex: 1; border: ${myVote === 'mafia_side' ? '4px solid #c62828' : '2px solid #e53935'}; 
-                                        padding: 18px; font-weight: bold; cursor: pointer; text-align: center; 
-                                        background: ${myVote === 'mafia_side' ? '#ffebee' : '#fff9f9'}; 
-                                        color: ${myVote === 'mafia_side' ? '#c62828' : '#333'};
-                                        box-shadow: ${myVote === 'mafia_side' ? 'inset 0 0 10px rgba(198,40,40,0.2), 0 4px 8px rgba(0,0,0,0.1)' : 'none'};
-                                        border-radius: 8px; transition: all 0.1s ease;" 
-                                 onclick="submitGhostShamanVote('mafia_side')">
-                                 🔴 마피아 진영 소속 ${myVote === 'mafia_side' ? '📊' : ''}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    quizBox.style.display = 'none';
-                }
-            }
-
-        } else if (status === 'night_action') {
-            if (msgBox) {
-                msgBox.className = "alert-box night";
-                msgBox.innerText = report ? `[재판 마감 보고서]\n${report}` : "밤이 되었습니다. 고유 능력을 발동할 대상을 찝어 주세요.";
-            }
-
-            if (quizBox) {
-                if (!currentUser.isAdmin && !myData.isAlive) {
-                    quizBox.style.display = 'block';
-                    document.getElementById('ghost-mission-title').innerText = "👻 유령 전용 과학 미션 (정답 시 단서 게이지 누적)";
-                    if (!currentQuiz) generateGhostQuiz(gameData.current_level || "2-1");
-                } else {
-                    quizBox.style.display = 'none';
-                }
-            }
+        // 유령 전용 뷰 드로잉 파트 분리 이월 (`ui-ghost-renderer.js`에서 위임 처리)
+        if (typeof renderGhostSection === 'function') {
+            renderGhostSection(status, report, msgBox, gameData, players, myData, shamanTargetUid, ghostVotes);
         }
 
         if (hintBox) {
@@ -298,7 +236,6 @@ function renderGameScreen() {
         const gridContainer = document.getElementById('player-grid');
         if (gridContainer) {
             gridContainer.innerHTML = '';
-
             for (let id in players) {
                 const p = players[id]; let cardClasses = ['grid-card']; let badgeText = '';
                 if (!p.isAlive) cardClasses.push('dead');
@@ -342,7 +279,6 @@ function renderGameScreen() {
 
 window.handleGridCardClick = function(targetUid) {
     if (currentUser.isAdmin) return;
-
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
         const players = gameData.players || {};
@@ -375,20 +311,6 @@ window.submitTrialDecision = function(decisionType) {
     });
 };
 
-window.submitGhostShamanVote = function(side) {
-    if (!currentUser) return;
-    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).set(side).then(() => {
-        console.log("영혼의 진영 선택 완료: " + side);
-    });
-};
-
-window.handleClearShamanVote = function() {
-    if (!currentUser) return;
-    getDb().ref(`game/shaman_ghost_votes/${currentUser.id}`).remove().then(() => {
-        console.log("투표 초기화 완료");
-    });
-};
-
 window.toggleSuspectRank = function() {
     const rBox = document.getElementById('rank-list');
     if (!rBox) return;
@@ -411,71 +333,3 @@ window.toggleSuspectRank = function() {
         rBox.style.display = 'block';
     }).catch(err => console.error("랭킹 로드 오류:", err));
 };
-
-function generateGhostQuiz(level) {
-    const pool = quizBank[level] || quizBank["2-1"];
-    currentQuiz = pool[Math.floor(Math.random() * pool.length)];
-    const qBox = document.getElementById('quiz-question');
-    const oBox = document.getElementById('quiz-options');
-
-    if (qBox && oBox) {
-        qBox.innerText = currentQuiz.q; oBox.innerHTML = '';
-        currentQuiz.a.forEach((opt, idx) => {
-            oBox.innerHTML += `<button class="quiz-opt-btn" onclick="submitQuizAnswer(${idx})">${idx + 1}. ${opt}</button>`;
-        });
-    }
-}
-
-function submitQuizAnswer(idx) {
-    if (idx === currentQuiz.c) {
-        alert('정답입니다! 단서 유령 에너지가 1 쌓였습니다.');
-        getDb().ref('game/quiz_score').transaction((score) => (score || 0) + 1);
-    } else { alert('오답입니다. 다음 문제를 준비합니다.'); }
-    currentQuiz = null;
-    renderGameScreen();
-}
-
-function renderGameOverScreen() {
-    getDb().ref('game').get().then((snapshot) => {
-        const gameData = snapshot.val() || {};
-        const players = gameData.players || {};
-        const winner = gameData.winner;
-
-        const title = document.getElementById('winner-title');
-        const report = document.getElementById('final-report');
-        
-        if (winner === 'citizen_win') {
-            title.innerText = "🎉 시민 진영 승리! 🎉"; title.style.color = "#4CAF50";
-            report.innerText = "마피아 세력을 전원 무력화하여 교실의 정의를 되찾았습니다.";
-        } else {
-            title.innerText = "🔴 마피아 진영 승리! 🔴"; title.style.color = "#d32f2f";
-            report.innerText = "시민 사회가 교묘한 마피아 집단에 의해 완전히 점령되었습니다.";
-        }
-
-        const roleKShort = {
-            mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
-            mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
-            assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
-        };
-
-        const mafiaContainer = document.getElementById('final-mafia-list');
-        const citizenContainer = document.getElementById('final-citizen-list');
-        mafiaContainer.innerHTML = ""; citizenContainer.innerHTML = "";
-
-        for (let id in players) {
-            const p = players[id]; const icon = roleIcons[p.role] || "👤"; const roleName = roleKShort[p.role] || p.role;
-            let statusBadge = p.isAlive ? `<span class="char-status-badge alive">🟢 생존</span>` : `<span class="char-status-badge dead">💀 유령 (${p.deathReason || '사망'})</span>`;
-
-            const cardHtml = `
-                <div class="role-character-card">
-                    <div class="char-icon">${icon}</div>
-                    <div class="char-nick">${p.nickname}</div>
-                    <div class="char-role">${roleName}</div>
-                    ${statusBadge}
-                </div>
-            `;
-            if (p.role === 'mafia' || p.role === 'spy') mafiaContainer.innerHTML += cardHtml;
-            else citizenContainer.innerHTML += cardHtml;
-        }
-    });
-}

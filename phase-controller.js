@@ -284,8 +284,12 @@ function processNightActions() {
             if (p.role === 'mudang' && p.nightTarget && p.nightTarget !== 'none') nextShamanTargetUid = p.nightTarget;
         }
 
+        // phase-controller.js 내부 processNightActions() 함수 내 무당 정산 파트 수정
+
+        // [★버그 완벽 해결] 파이어베이스 트리의 game 노드 직속 하위 경로에서 유령 투표 집계 추출
         if (lastShamanTargetUid !== "none" && players[lastShamanTargetUid]) {
             let citizenVotes = 0; let mafiaVotes = 0;
+            // gameData.shaman_ghost_votes 대신 리얼타임으로 연동된 ghostVotes 객체를 직접 순회합니다.
             for (let gId in ghostVotes) {
                 if (ghostVotes[gId] === 'citizen_side') citizenVotes++;
                 if (ghostVotes[gId] === 'mafia_side') mafiaVotes++;
