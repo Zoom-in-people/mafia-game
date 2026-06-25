@@ -1,16 +1,17 @@
 /**
  * 5. ui-ghost-renderer.js
- * 사망 유령 스크린 컴팩트 진영 카드 드로잉 및 게임 종료 뷰 핸들러
+ * 사망 유령 스크린 컴팩트 진영 카드 및 야간 과학 미션 분리 렌더링 엔진 (타임라인 완벽 매핑판)
  */
 
 function renderGhostSection(status, report, msgBox, gameData, players, myData, shamanTargetUid, ghostVotes) {
     const quizBox = document.getElementById('ghost-quiz-section');
     if (!quizBox) return;
 
+    // [★구조 개혁] 낮과 밤의 타임라인 역할을 명확하게 분리하여 UI 중첩 현상을 원천 방지합니다.
     if (status === 'day_discuss') {
         if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
         
-        // [★요청사항 2 반영] 유령 학생 진영 선택 박스를 컴팩트하게 슬림화 교정
+        // 1. 낮에는 무조건 [무당의 영매 신호 수신 및 진영 투표]만 활성화합니다. (과학 미션은 철저히 가림)
         if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
             quizBox.style.display = 'block';
             document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
@@ -18,7 +19,6 @@ function renderGhostSection(status, report, msgBox, gameData, players, myData, s
             
             const myVote = (ghostVotes && ghostVotes[currentUser.id]) ? ghostVotes[currentUser.id] : "";
 
-            // 패딩을 18px -> 8px로 축소하고 마진과 레이아웃을 단정하게 재조정
             document.getElementById('quiz-options').innerHTML = `
                 <div style="display: flex; gap: 10px; margin-top: 8px;">
                     <div class="grid-card ${myVote === 'citizen_side' ? 'my-selected' : ''}" 
@@ -42,14 +42,20 @@ function renderGhostSection(status, report, msgBox, gameData, players, myData, s
                 </div>
             `;
         } else {
+            // 무당이 밤에 아무도 고르지 않은 판(예: 1회차 낮 등)에는 깔끔하게 영역 차단
             quizBox.style.display = 'none';
         }
 
     } else if (status === 'night_action') {
+        // 2. 밤이 되는 순간, 낮의 영매 투표창은 강제로 증발하고 오직 [유령 전용 과학 미션]만 노출됩니다.
         if (!currentUser.isAdmin && !myData.isAlive) {
             quizBox.style.display = 'block';
             document.getElementById('ghost-mission-title').innerText = "👻 유령 전용 과학 미션";
-            if (!currentQuiz) generateGhostQuiz(gameData.current_level || "2-1");
+            
+            // 낮의 투표 선택지가 찌꺼기로 노출되어 오류를 유발하는 현상을 깨끗하게 청소 초기화합니다.
+            if (!currentQuiz) {
+                generateGhostQuiz(gameData.current_level || "2-1");
+            }
         } else {
             quizBox.style.display = 'none';
         }
@@ -72,7 +78,7 @@ function generateGhostQuiz(level) {
     if (qBox && oBox) {
         qBox.innerText = currentQuiz.q; oBox.innerHTML = '';
         currentQuiz.a.forEach((opt, idx) => {
-            oBox.innerHTML += `<button class="quiz-opt-btn" style="padding:6px; margin-bottom:4px; font-size:13px;" onclick="submitQuizAnswer(${idx})">${idx + 1}. ${opt}</button>`;
+            oBox.innerHTML += `<button class="quiz-opt-btn" style="padding:6px; margin-bottom:4px; font-size:13px; width:100%;" onclick="submitQuizAnswer(${idx})">${idx + 1}. ${opt}</button>`;
         });
     }
 }
@@ -83,50 +89,10 @@ function submitQuizAnswer(idx) {
         getDb().ref('game/quiz_score').transaction((score) => (score || 0) + 1);
     } else { alert('오답입니다. 다음 문제를 준비합니다.'); }
     currentQuiz = null;
-    renderGameScreen();
-}
-
-function renderGameOverScreen() {
-    getDb().ref('game').get().then((snapshot) => {
-        const gameData = snapshot.val() || {};
-        const players = gameData.players || {};
-        const winner = gameData.winner;
-
-        const title = document.getElementById('winner-title');
-        const report = document.getElementById('final-report');
-        
-        if (winner === 'citizen_win') {
-            title.innerText = "🎉 시민 진영 승리! 🎉"; title.style.color = "#4CAF50";
-            report.innerText = "마피아 세력을 전원 무력화하여 교실의 정의를 되찾았습니다.";
-        } else {
-            title.innerText = "🔴 마피아 진영 승리! 🔴"; title.style.color = "#d32f2f";
-            report.innerText = "시민 사회가 교묘한 마피아 집단에 의해 완전히 점령되었습니다.";
-        }
-
-        const roleKShort = {
-            mafia: "마피아", citizen: "시민", spy: "스파이", detective: "사립탐정",
-            mudang: "무당", police: "경찰", doctor: "의사", soldier: "군인",
-            assemblyman: "국회의원", terrorist: "테러리스트", gangster: "건달", lovers: "연인"
-        };
-
-        const mafiaContainer = document.getElementById('final-mafia-list');
-        const citizenContainer = document.getElementById('final-citizen-list');
-        mafiaContainer.innerHTML = ""; citizenContainer.innerHTML = "";
-
-        for (let id in players) {
-            const p = players[id]; const icon = roleIcons[p.role] || "👤"; const roleName = roleKShort[p.role] || p.role;
-            let statusBadge = p.isAlive ? `<span class="char-status-badge alive">🟢 생존</span>` : `<span class="char-status-badge dead">💀 유령 (${p.deathReason || '사망'})</span>`;
-
-            const cardHtml = `
-                <div class="role-character-card">
-                    <div class="char-icon">${icon}</div>
-                    <div class="char-nick">${p.nickname}</div>
-                    <div class="char-role">${roleName}</div>
-                    ${statusBadge}
-                </div>
-            `;
-            if (p.role === 'mafia' || p.role === 'spy') mafiaContainer.innerHTML += cardHtml;
-            else citizenContainer.innerHTML += cardHtml;
-        }
-    });
+    
+    // 문제를 풀고 나면 즉시 렌더러를 다시 돌려 다음 문제를 매끄럽게 준비합니다.
+    if (typeof renderGameScreen === 'function') {
+        isGameScreenListenerAttached = false; 
+        renderGameScreen();
+    }
 }
