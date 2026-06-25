@@ -339,30 +339,40 @@ if (myData.trialDecision && myData.trialDecision !== "none") {
     });
 }
 
-function handleGridCardClick(targetUid) {
-    if (currentUser.isAdmin) return;
+window.handleGridCardClick = function(targetUid) {
+    if (currentUser.isAdmin) return; // 교사는 클릭 불가
+
     getDb().ref('game').get().then(snap => {
         const gameData = snap.val() || {};
         const players = gameData.players || {};
         const myData = players[currentUser.id];
 
+        // 내가 플레이어 명단에 없거나 이미 사망한 유령이라면 격자 카드 클릭 무효화
         if (!myData || !myData.isAlive) return;
 
+        // 본인의 실제 직업명을 정확하게 변수에 할당 (에러 원인 제거)
+        const myActualRole = myData.role || "none";
+
         if (gameData.status === 'day_discuss' && gameData.vote_state === 'voting') {
+            // [낮 의심자 투표 시간]
             if (gameData.last_night_assault === currentUser.id) {
                 alert("당신은 어젯밤 건달에게 폭행을 당해 오늘 낮 투표를 하실 수 없습니다!");
                 return;
             }
             getDb().ref(`game/players/${currentUser.id}/dayVote`).set(targetUid);
+
         } else if (gameData.status === 'night_action') {
-            if (['citizen', 'lovers', 'soldier', 'assemblyman'].includes(currentRole)) {
+            // [밤 능력 사용 시간] - 시민 진영 계열과 마피아/특수직업 계열 분기 정밀 복구
+            if (['citizen', 'lovers', 'soldier', 'assemblyman'].includes(myActualRole)) {
+                // 밤에 의심 메모를 남기는 직업군 (suspect 노드에 저장)
                 getDb().ref(`game/players/${currentUser.id}/suspect`).set(targetUid);
             } else {
+                // 고유 능력을 사용하는 직업군 (마피아 저격, 의사 힐, 경찰 조사, 건달 협박 등 nightTarget 노드에 저장)
                 getDb().ref(`game/players/${currentUser.id}/nightTarget`).set(targetUid);
             }
         }
-    });
-}
+    }).catch(err => console.error("격자 카드 클릭 처리 오류:", err));
+};
 
 // [★1번, 2번 버그 완벽 타격 해결] 버튼과 연동되는 재판 찬반 제출 전역 연동 함수 선언
 window.submitTrialDecision = function(decisionType) {
