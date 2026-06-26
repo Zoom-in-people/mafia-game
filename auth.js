@@ -182,13 +182,17 @@ window.serverKickPlayer = function(uid) {
     }
 };
 
+// auth.js 내부의 handleExit() 함수 수정 반영본
 function handleExit() {
     if (!currentUser) return;
-    const confirmExit = confirm("정말 이 방에서 나가시겠습니까?");
+    const confirmExit = confirm("정말 이 방에서 나가시겠습니까? (나간 동안은 AI가 대신 진행합니다.)");
     if (!confirmExit) return;
 
     if (!currentUser.isAdmin) {
-        getDb().ref(`game/players/${currentUser.id}`).remove().then(clearSession);
+        // [수정] remove() 대신 AI 대타 상태로 전환시키고 세션을 클리어합니다.
+        getDb().ref(`game/players/${currentUser.id}`).update({
+            isAiControlled: true
+        }).then(clearSession);
     } else {
         clearSession();
     }

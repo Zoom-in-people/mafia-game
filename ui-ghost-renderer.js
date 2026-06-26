@@ -1,23 +1,26 @@
 /**
  * 5. ui-ghost-renderer.js
- * 사망 유령 스크린 컴팩트 진영 카드 및 야간 과학 미션 분리 렌더링 엔진 (타임라인 완벽 매핑판)
+ * 사망 유령 스크린 컴팩트 진영 카드 및 야간 과학 미션 분리 렌더링 엔진 (버그 교정판)
  */
 
 function renderGhostSection(status, report, msgBox, gameData, players, myData, shamanTargetUid, ghostVotes) {
     const quizBox = document.getElementById('ghost-quiz-section');
     if (!quizBox) return;
 
-    // [★구조 개혁] 낮과 밤의 타임라인 역할을 명확하게 분리하여 UI 중첩 현상을 원천 방지합니다.
+    // [★버그 해결 2-1] 파이어베이스 원본 트리의 실시간 대소문자 데이터 필드명을 다이렉트로 추적하도록 안전 패치
+    const liveShamanTargetUid = gameData.shaman_target_uid || "none";
+    const liveGhostVotes = gameData.shaman_ghost_votes || {};
+
     if (status === 'day_discuss') {
         if (msgBox) { msgBox.className = "alert-box"; msgBox.innerText = report; }
         
-        // 1. 낮에는 무조건 [무당의 영매 신호 수신 및 진영 투표]만 활성화합니다. (과학 미션은 철저히 가림)
-        if (!currentUser.isAdmin && !myData.isAlive && shamanTargetUid !== "none" && players[shamanTargetUid]) {
+        // [★버그 해결 2-2] 증발했던 유령 투표 보드를 실시간 노드 감지 조건식을 통해 완벽하게 다시 부활시켰습니다.
+        if (!currentUser.isAdmin && !myData.isAlive && liveShamanTargetUid !== "none" && players[liveShamanTargetUid]) {
             quizBox.style.display = 'block';
             document.getElementById('ghost-mission-title').innerText = "🔮 무당의 영매 신호 수신";
-            document.getElementById('quiz-question').innerText = `[${players[shamanTargetUid].nickname}]의 진영 소속을 감별해 주세요.`;
+            document.getElementById('quiz-question').innerText = `무당이 지목한 [${players[liveShamanTargetUid].nickname}] 학생의 실제 진영 소속을 감별 투표해 주세요.`;
             
-            const myVote = (ghostVotes && ghostVotes[currentUser.id]) ? ghostVotes[currentUser.id] : "";
+            const myVote = liveGhostVotes[currentUser.id] || "";
 
             document.getElementById('quiz-options').innerHTML = `
                 <div style="display: flex; gap: 10px; margin-top: 8px;">
@@ -42,17 +45,14 @@ function renderGhostSection(status, report, msgBox, gameData, players, myData, s
                 </div>
             `;
         } else {
-            // 무당이 밤에 아무도 고르지 않은 판(예: 1회차 낮 등)에는 깔끔하게 영역 차단
             quizBox.style.display = 'none';
         }
 
     } else if (status === 'night_action') {
-        // 2. 밤이 되는 순간, 낮의 영매 투표창은 강제로 증발하고 오직 [유령 전용 과학 미션]만 노출됩니다.
         if (!currentUser.isAdmin && !myData.isAlive) {
             quizBox.style.display = 'block';
             document.getElementById('ghost-mission-title').innerText = "👻 유령 전용 과학 미션";
             
-            // 낮의 투표 선택지가 찌꺼기로 노출되어 오류를 유발하는 현상을 깨끗하게 청소 초기화합니다.
             if (!currentQuiz) {
                 generateGhostQuiz(gameData.current_level || "2-1");
             }
@@ -90,7 +90,6 @@ function submitQuizAnswer(idx) {
     } else { alert('오답입니다. 다음 문제를 준비합니다.'); }
     currentQuiz = null;
     
-    // 문제를 풀고 나면 즉시 렌더러를 다시 돌려 다음 문제를 매끄럽게 준비합니다.
     if (typeof renderGameScreen === 'function') {
         isGameScreenListenerAttached = false; 
         renderGameScreen();

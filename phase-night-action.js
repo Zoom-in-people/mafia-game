@@ -1,9 +1,9 @@
 /**
  * 4-3. phase-night-action.js
- * 낮 종료 시 유령 투표 취합 전송 및 야간 특수 직업 연산 브리핑 제어기
+ * 낮 종료 시 유령 투표 취합 전송 및 야간 특수 직업 연산 브리핑 제어기 (설명문구 버그 교정판)
  */
 
-// [★교정 완결] 2회차 낮 유령 감별 결과를 2회차 밤 무당이 바로 읽을 수 있도록 즉시 파싱 정산
+// 2회차 낮 유령 감별 결과를 2회차 밤 무당이 바로 읽을 수 있도록 즉시 파싱 정산
 window.processDayToNightShamanSettlement = function(parentUpdates) {
     getDb().ref('game').get().then(snapshot => {
         const gameData = snapshot.val() || {};
@@ -17,7 +17,6 @@ window.processDayToNightShamanSettlement = function(parentUpdates) {
         if (lastShamanTargetUid !== "none" && players[lastShamanTargetUid]) {
             let citizenVotes = 0; let mafiaVotes = 0;
 
-            // [★집계 버그 100% 박멸] 유령 투표 노드 안전 파싱 카운터
             Object.entries(ghostVotes).forEach(([gId, side]) => {
                 if (side === 'citizen_side') citizenVotes++;
                 if (side === 'mafia_side') mafiaVotes++;
@@ -28,7 +27,6 @@ window.processDayToNightShamanSettlement = function(parentUpdates) {
             else if (mafiaVotes > citizenVotes) finalGhostVerdict = "마피아 편🔴";
             else if (citizenVotes > 0 && citizenVotes === mafiaVotes) finalGhostVerdict = "의견 대립 (동표)";
 
-            // 2회차 밤 시작과 동시에 살아있는 무당들의 개인 로그 일지장에 기록 강제 주입
             for (let id in players) {
                 if (players[id].role === 'mudang' && players[id].isAlive) {
                     let mLog = (players[id].personalLog === "none") ? "" : (players[id].personalLog || "");
@@ -38,7 +36,6 @@ window.processDayToNightShamanSettlement = function(parentUpdates) {
             }
         }
 
-        // 정산이 완벽히 인계되었으므로 다음 날 낮의 깨끗한 카드 투표판을 위해 저장소 비우기
         updates['game/shaman_ghost_votes'] = null;
         getDb().ref().update(updates);
     }).catch(err => console.error("무당 인계 파이프라인 오류:", err));
@@ -49,30 +46,30 @@ function handleNextStage() {
     if (!currentUser || !currentUser.isAdmin) return;
     getDb().ref('game/status').get().then(snap => {
         if (snap.val() === 'day_discuss') {
-            // 낮 토론 중 강제 단계 이동 시 유령 데이터 합산 후 밤 진입
-            const initialUpdates = { 'game/status': 'night_action' };
+            // [★버그 해결 1-1] 낮 토론에서 밤으로 넘어가는 "즉시" 상단 알림 배너 문구를 밤에 알맞게 강제 교체합니다.
+            const initialUpdates = { 
+                'game/status': 'night_action',
+                'game/morning_report': "밤이 되었습니다. 마피아는 저격 대상을 지목하고, 특수 직업군은 고유 능력을 발동해 주세요."
+            };
             window.processDayToNightShamanSettlement(initialUpdates);
         } else {
-            // 밤 종료 버튼을 누르면 야간 행동 종합 정산 엔진 가동
             processNightActions();
         }
     });
+    window.triggerAiAutomation('night_action', 'none');
 }
 
-// 밤새 일어난 습격, 힐, 특수 조사를 종합 정산하여 아침 리포트를 도출하는 엔진
 function processNightActions() {
     getDb().ref('game').get().then((snapshot) => {
         const gameData = snapshot.val() || {};
         const players = gameData.players || {};
         const currentTurnVal = gameData.turn || 1; 
         const historyLogs = gameData.history_logs || [];
-        const nextShamanTargetUid = gameData.shaman_target_uid || "none"; // 무당이 이번 밤에 찍은 뉴 타겟
 
         let reports = []; let deadList = []; const updates = {};
         let mafiaTargets = {}; let protectedUid = "none";
         let spyTargetUid = "none"; let gangsterTargetUid = "none";
 
-        // 야간 타겟 데이터 전수 서치 수집
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive) continue;
@@ -82,7 +79,6 @@ function processNightActions() {
             if (p.role === 'gangster' && p.nightTarget && p.nightTarget !== 'none') gangsterTargetUid = p.nightTarget;
         }
 
-        // 경찰, 탐정 등 조사 직업 기록 주입
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
@@ -98,7 +94,6 @@ function processNightActions() {
             if (line) updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${line}` : line;
         }
 
-        // 스파이의 조사 및 마피아 진영 연동 공유 일지 기입
         if (spyTargetUid !== "none" && players[spyTargetUid]) {
             const spyT = players[spyTargetUid];
             let spyIdentityResult = spyT.role === 'mafia' ? "마피아입니다." : (spyT.role === 'citizen' ? "시민입니다." : "직업이 있습니다.");
@@ -117,7 +112,6 @@ function processNightActions() {
             }
         }
 
-        // 마피아 공격 계산
         let maxM = 0; let finalMTarget = "none";
         for (let t in mafiaTargets) { if (mafiaTargets[t] > maxM) { maxM = mafiaTargets[t]; finalMTarget = t; } }
 
@@ -155,13 +149,11 @@ function processNightActions() {
             reports.push(`밤사이에 평화로운 정적만이 흘렀습니다.`);
         }
 
-        // 건달 협박 징계 연산
         if (gangsterTargetUid !== "none" && players[gangsterTargetUid]) {
             reports.push(`🥊 건달의 폭행으로 [${players[gangsterTargetUid].nickname}] 학생은 오늘 낮 투표권이 박탈됩니다!`);
             updates['game/last_night_assault'] = gangsterTargetUid;
         } else { updates['game/last_night_assault'] = "none"; }
 
-        // 아침 의심 메모 통계 정산
         let morningSuspectCounts = {};
         for (let id in players) {
             const sId = players[id].suspect;
@@ -176,12 +168,11 @@ function processNightActions() {
         });
         if (deadList.length === 0) historyLogs.push(`제 ${currentTurnVal}회차 밤: 아무도 사망하지 않음`);
 
-        // 승리 판정 헬퍼
         const victory = checkVictoryFaction(players, updates);
         if (victory !== "continue") {
             updates['game/status'] = 'game_over'; updates['game/winner'] = victory;
         } else {
-            updates['game/status'] = 'day_discuss'; // 아침 낮 토론으로 복귀
+            updates['game/status'] = 'day_discuss'; 
         }
 
         for (let id in players) {

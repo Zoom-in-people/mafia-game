@@ -272,6 +272,20 @@ function renderGameScreen() {
                         ${badgeText}
                     </div>
                 `;
+
+                // ui-render.js 내 player-grid 렌더링 루프 구역 수정 스니펫
+
+    // AI 대타 진행 상태인 경우 닉네임 밑에 문구 추가
+    let aiSubText = p.isAiControlled ? `<div style="font-size:10px; color:#ef6c00; font-weight:bold;">(AI로 대체됨)</div>` : "";
+
+    gridContainer.innerHTML += `
+        <div class="${cardClasses.join(' ')}" onclick="handleGridCardClick('${id}')">
+            <span>${p.nickname}</span>
+            ${aiSubText}
+            ${loversAppendText}
+            ${badgeText}
+        </div>
+    `;
             }
         }
     });

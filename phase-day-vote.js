@@ -16,6 +16,7 @@ function serverStartDayVote() {
         updates['game/vote_state'] = 'voting';
         getDb().ref().update(updates);
     });
+    window.triggerAiAutomation('day_discuss', 'voting');
 }
 
 // 의심자 지목 투표 마감 및 동표 예외 처리 엔진
@@ -48,6 +49,7 @@ function serverFinishDayVote() {
 
         getDb().ref().update(updates);
     });
+    window.triggerAiAutomation('day_discuss', 'execution_trial');
 }
 
 // 사형대 진입자 최종 처형 / 무죄 부활 판정 정산기
