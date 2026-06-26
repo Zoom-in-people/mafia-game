@@ -1,410 +1,240 @@
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+/**
+ * style.css
+ * 교실 마피아 게임 화면 구성 및 반응형 디바이스 UI 최적화 스타일시트 (정렬 완결판)
+ */
 
+/* [1] 전역 테마 및 기본 배경 설정 */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Arial', sans-serif;
     background-color: #f5f5f5;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
-    padding: 10px;
+    margin: 0;
+    padding: 15px;
+    color: #333;
 }
 
-#app {
-    width: 100%;
-    width: -webkit-fill-available;
-    background: white;
-    padding: 4vw;
+/* 메인 화면 뷰 컨테이너 모듈 */
+.view-container {
+    display: none;
+    max-width: 600px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 20px;
     border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    margin-top: 5px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-#global-exit-btn {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 9999;
-    width: auto;
-    padding: 6px 12px;
-    background-color: #ff4d4d;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-input, select, button {
-    width: 100%;
-    padding: 12px;
-    margin: 6px 0;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    font-size: 16px;
-}
-
-button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-button:hover { opacity: 0.9; }
-
-.toggle-text {
+h1, h2, h3, h4 {
     text-align: center;
-    margin-top: 15px;
-    font-size: 14px;
-    color: #666;
-}
-.toggle-text span {
-    color: #2196F3;
-    text-decoration: underline;
-    cursor: pointer;
-    font-weight: bold;
-    margin-left: 5px;
+    margin-top: 0;
 }
 
-#player-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 8px;
-    margin-top: 15px;
-    max-height: 250px;
-    overflow-y: auto;
-    padding: 10px;
-    background: #fafafa;
-    border: 1px dashed #bbb;
-    border-radius: 8px;
-}
-
-.kick-btn {
-    background-color: #d32f2f;
-    color: white;
-    border-radius: 3px;
-    font-size: 10px;
-    padding: 2px 4px;
-    width: auto;
-    margin: 0 0 0 5px;
-    display: inline-block;
-}
-
-.player-card {
-    background: #eef2f3;
-    border-left: 4px solid #4CAF50;
-    padding: 10px;
-    text-align: center;
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 13px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
+/* [2] 상단 진행 상황판 및 아침 알림 전광판 */
 .alert-box {
     background-color: #e3f2fd;
-    color: #0d47a1;
+    border-left: 5px solid #2196f3;
     padding: 12px;
-    text-align: center;
-    border-radius: 6px;
+    margin-bottom: 15px;
+    border-radius: 4px;
     font-weight: bold;
-    margin: 10px 0;
-    white-space: pre-line;
     font-size: 14px;
+    white-space: pre-line;
 }
+
+/* 야간 전환 시 분위기를 가라앉히는 밤 전용 알림 스타일 */
 .alert-box.night {
     background-color: #1a237e;
-    color: #ffffff;
-}
-
-.vote-alert-box {
-    background-color: #fff3e0;
-    border: 2px solid #ff9800;
-    color: #e65100;
-    padding: 12px;
-    text-align: center;
-    border-radius: 8px;
-    font-weight: bold;
-    margin: 10px 0;
-    font-size: 14px;
-}
-
-.hint-box {
-    background-color: #fff3e0;
-    color: #e65100;
-    padding: 10px;
-    border-left: 5px solid #ff9800;
-    margin-bottom: 10px;
-    font-size: 13px;
-    font-weight: bold;
-    border-radius: 4px;
-}
-
-.history-container {
-    background: #f1f1f1;
-    border: 1px solid #dcdcdc;
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-    text-align: left;
-}
-.history-container h4 {
-    margin: 0 0 4px 0;
-    color: #424242;
-    font-size: 13px;
-}
-#history-log-list {
-    font-size: 12px;
-    max-height: 85px;
-    overflow-y: auto;
-    line-height: 1.4;
-    color: #555;
-}
-
-#my-role-box {
-    background: #333;
+    border-left: 5px solid #ffeb3b;
     color: #fff;
-    text-align: center;
-    padding: 12px;
-    border-radius: 6px;
-    font-size: 16px;
-    font-weight: bold;
-    margin-bottom: 12px;
 }
 
-#player-grid {
+/* [3] 28인 자동 배정 핵심 플레이어 격자판 */
+.grid-container {
     display: grid;
-    grid-template-columns: repeat(5, 1fr); 
-    gap: 4px;
-    margin-top: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 10px;
+    margin: 15px 0;
 }
 
+/* 학생 개별 상태 연동형 카드 인터페이스 */
 .grid-card {
-    background: #ffffff;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    aspect-ratio: 1.1 / 1;
+    background: #fff;
+    border: 2px solid #ddd;
+    padding: 12px 6px;
+    text-align: center;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    position: relative;
+    font-size: 14px;
+    min-height: 40px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-size: 10px; 
+}
+
+.grid-card:active {
+    transform: scale(0.95);
+}
+
+/* 내 선택지가 명확하게 반전 적용되는 불빛 이펙트 (유령 투표 등 연동) */
+.grid-card.my-selected {
+    border-width: 4px;
+    transform: scale(1.02);
+    z-index: 2;
+}
+
+/* 사망하여 탈락한 사망자 유령 카드 가림막 */
+.grid-card.dead {
+    background-color: #eaeaea;
+    color: #888;
+    border-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* [4] 상태 표시 배지 라벨 시스템 */
+.badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 9px;
+    padding: 2px 4px;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: bold;
+    background: #e53935;
+}
+
+.badge.blue { background: #1e88e5; }
+.badge.green { background: #4caf50; } /* 들여쓰기 규격 칼정렬 완료 */
+
+/* [5] 입력 폼 및 직관적 버튼 컴포넌트 */
+input, select {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 15px;
+}
+
+button {
+    width: 100%;
+    background-color: #4CAF50;
+    color: white;
+    padding: 12px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
     font-weight: bold;
     cursor: pointer;
-    position: relative;
-    transition: all 0.2s;
-    padding: 1px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-.grid-card span {
-    width: 100%;
-    white-space: normal;
-    word-break: break-all;
-    text-align: center;
-    line-height: 1.1;
+button:hover {
+    opacity: 0.9;
 }
 
-.grid-card span.badge {
-    font-size: 7.5px;
-    color: white;
-    margin-top: 1px;
-    font-weight: bold;
-    background: #ff5722;
-    padding: 0px 2px;
-    border-radius: 2px;
-    white-space: nowrap;
-}
-.grid-card span.badge.green { background: #4caf50; }
-.grid-card span.badge.blue { background: #2196f3; }
-.grid-card span.badge.purple { background: #9c27b0; }
-.grid-card span.badge.pink { background: #e91e63; }
+/* 성격별 범용 컬러 분기 */
+.btn-danger { background-color: #d32f2f; }
+.btn-secondary { background-color: #7b1fa2; }
+.btn-info { background-color: #0288d1; }
 
-.grid-card.my-selected {
-    border-color: #ff9800;
-    background-color: #fff8e1;
-    box-shadow: 0 0 4px rgba(255, 152, 0, 0.5);
-}
-.grid-card.dead {
-    background: #ffebee;
-    border-color: #ef5350;
-    color: #c62828;
-}
-.grid-card.dead::after {
-    content: "X";
-    position: absolute;
-    font-size: 30px;
-    color: rgba(239, 83, 80, 0.35);
-    font-weight: 900;
-}
-
-.rank-box {
-    background: #f9f9f9;
-    border: 1px solid #ddd;
-    padding: 10px;
-    margin: 10px 0;
+/* [6] 로그 아카이브 멀티 뷰 터미널 */
+.log-box {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    height: 100px;
+    overflow-y: auto;
+    padding: 8px;
+    font-size: 12.5px;
     border-radius: 6px;
+    margin-bottom: 15px;
+    line-height: 1.5;
+}
+
+/* [7] 교사 전용 실시간 현황 감시 모니터 대시보드 */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
     font-size: 13px;
 }
 
-.table-container {
-    max-height: 180px;
-    overflow-y: auto;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    background: white;
+.admin-table th, .admin-table td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    text-align: center;
 }
-.monitor-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-    font-size: 12px;
+
+.admin-table th {
+    background-color: #f2f2f2;
 }
-.monitor-table th, .monitor-table td {
-    padding: 6px 10px;
-    border-bottom: 1px solid #eee;
-}
-.monitor-table th {
-    background-color: #f5f5f5;
-    color: #333;
-    position: sticky;
-    top: 0;
-}
-.monitor-table tr.monitor-dead {
-    background-color: #fafafa;
-    color: #bbb;
+
+.monitor-dead {
+    background-color: #ffebee;
+    color: #c62828;
     text-decoration: line-through;
 }
 
 .secret-reveal-btn {
     padding: 2px 6px;
-    font-size: 10px;
-    background-color: #757575;
-    color: white;
-    border: none;
-    border-radius: 4px;
+    font-size: 11px;
     cursor: pointer;
-    width: auto;
-    margin: 0;
 }
 
-.faction-container {
+/* [8] 게임 오버 최종 캐릭터 피날레 풀 */
+.character-pool {
     display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-top: 12px;
-}
-.faction-box {
-    padding: 12px;
-    border-radius: 10px;
-    border: 2px solid #ccc;
-}
-.mafia-faction { background-color: #fff5f5; border-color: #ffcdd2; }
-.mafia-faction h4 { color: #c62828; margin-bottom: 10px; font-size: 15px; border-bottom: 2px solid #ef5350; padding-bottom: 4px; text-align: left; }
-.citizen-faction { background-color: #f7f9fa; border-color: #cfd8dc; }
-.citizen-faction h4 { color: #37474f; margin-bottom: 10px; font-size: 15px; border-bottom: 2px solid #78909c; padding-bottom: 4px; text-align: left; }
-
-.faction-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
 }
 
 .role-character-card {
-    background: white;
+    background: #f9f9f9;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 10px;
-    text-align: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-}
-.role-character-card .char-icon { font-size: 26px; }
-.role-character-card .char-nick { font-size: 13px; font-weight: bold; color: #333; }
-.role-character-card .char-role { font-size: 11px; color: #666; background: #f1f1f1; padding: 1px 4px; border-radius: 4px; }
-.role-character-card .char-status-badge { font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 20px; margin-top: 2px; color: white; }
-.role-character-card .char-status-badge.alive { background-color: #4caf50; }
-.role-character-card .char-status-badge.dead { background-color: #e53935; }
-
-.quiz-container {
-    background: #f3e5f5;
-    border: 1px solid #ce93d8;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-}
-.quiz-container h4 { color: #4a148c; margin-bottom: 6px; font-size: 14px; }
-#quiz-question { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
-.quiz-opt-btn {
-    background: #ffffff; color: #333; border: 1px solid #ab47bc;
-    padding: 8px; margin: 4px 0; font-size: 12px; text-align: left;
-}
-
-.modal {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0,0,0,0.5);
-    display: flex; justify-content: center; align-items: center; z-index: 10000;
-}
-.modal-content {
-    background: white; width: 92%; max-width: 420px;
-    padding: 15px; border-radius: 12px; position: relative;
-}
-.tab-menu { display: flex; gap: 4px; margin-top: 10px; }
-.tab-btn { flex: 1; padding: 6px; margin: 0; font-size: 12px; background-color: #eee; color: #333; border: 1px solid #ccc; }
-.tab-btn.active { background-color: #7b1fa2; color: white; border-color: #7b1fa2; }
-.modal-scroll-area { max-height: 280px; overflow-y: auto; margin-top: 8px; font-size: 13px; line-height: 1.5; text-align: left; }
-.modal-scroll-area p { margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-.close-modal { position: absolute; top: 8px; right: 12px; font-size: 22px; font-weight: bold; cursor: pointer; color: #aaa; }
-.close-modal:hover { color: black; }
-
-/* style.css 맨 아래에 추가해 줄 가독성 보강 코드 */
-
-/* 대기실 전용: 교사용 추방 버튼 스타일 최적화 */
-.kick-btn {
-    background-color: #d32f2f !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 4px !important;
-    font-size: 11px !important;
-    padding: 3px 8px !important;
-    cursor: pointer;
-    width: auto !important;
-    margin: 0 0 0 10px !important;
-    line-height: 1;
-}
-.kick-btn:hover {
-    background-color: #b71c1c !important;
-}
-
-/* 유령 세션 상단 타이틀 가독성 하이라이트 */
-#ghost-mission-title {
-    color: #4a148c;
-    font-size: 14px;
-    font-weight: bold;
-    margin-bottom: 8px;
-    border-bottom: 2px solid #ce93d8;
-    padding-bottom: 4px;
-    text-align: center;
-}
-
-/* 재판대 최종 결정 제출 후 나타나는 안내 안내판 양식 */
-#trial-submit-result-text {
-    background-color: #e8f5e9;
-    border: 1px solid #a5d6a7;
     border-radius: 6px;
-    font-size: 13px;
+    padding: 8px;
+    width: 100px;
     text-align: center;
-    margin-top: 10px;
+    font-size: 12px;
+}
+
+.char-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.char-nick {
+    font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.char-role {
+    font-weight: normal;
+    color: #666;
+}
+
+.char-status-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.char-status-badge.alive {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.char-status-badge.dead {
+    background: #ffebee;
+    color: #c62828;
 }

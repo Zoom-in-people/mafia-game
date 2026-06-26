@@ -9,9 +9,11 @@ const firebaseConfig = {
   appId: "1:211882425801:web:69b95a32239c16d2f2fc18"
 };
 
-// 전역 초기화 실행
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
+    console.log("✅ 파이어베이스(Firebase) 서버 엔진이 성공적으로 연동 및 초기화되었습니다.");
+} else {
+    firebase.app(); // 이미 활성화된 앱 세션 인스턴스가 있다면 재사용
 }
 
 // 전역 window 상자에 데이터베이스 객체를 담아 app.js에 안전하게 넘깁니다.
