@@ -1,10 +1,12 @@
 /**
  * 5-1. ui-render.js
- * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (라우팅 최적화 버전)
+ * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (교사 패널 완전 복구판)
  */
 
 let cachedGameData = null;
 let cachedPlayers = null;
+
+// 회원가입 관리 창이 열렸을 때 실시간 패킷이 화면을 대기실로 강제 튕겨내는 현상을 막는 뷰 잠금장치
 let isInAdminAccountsView = false;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const db = getDb();
         if (!db) return;
 
+        // [핵심 파이프라인] 루트 노드를 감시하여 대기방, 인게임, 회원정보를 실시간 통합 트리거링
         db.ref().on('value', (snapshot) => {
             const rootData = snapshot.val() || {};
             const gameData = rootData.game || {};
@@ -25,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cachedGameData = gameData;
             cachedPlayers = players;
 
-            // 독립 계정 관리 창 개방 시, 동기화 패킷이 뷰를 튕겨내지 않게 가드하고 실시간 테이블만 전면 렌더링 유지
+            // 1. 회원수정 전용 독립 화면이 열려 있다면 인게임 화면 전환을 차단하고 계정 테이블만 실시간 드로잉
             if (isInAdminAccountsView) {
                 if (currentUser && currentUser.isAdmin) {
                     renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
@@ -33,29 +36,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // 세션 상태에 따른 레이어 화면 전환 제어
+            // 2. 세션 상태에 따른 레이어 화면 전환 제어
             updateViewVisibility(status);
 
-            // 대기실 상태일 때 실시간 접속자 명단 사출
+            // 3. 대기실 상태일 때 실시간 접속자 명단 카드 및 [교사 전용 설정 패널] 노출 제어
             if (status === 'waiting') {
                 renderWaitingPlayerGrid(users);
+                
+                // [★버그 완전 교정] 외부 가드에 의존하지 않고, 리스너 내부에서 교사용 설정 패널의 가시성을 다이렉트로 강제 집행합니다.
+                // 이 가드가 도입되어 독립 화면에서 복귀하거나 학생이 난입해도 교사용 대기실 통제탑이 절대 사라지지 않습니다.
+                const setupPanel = document.getElementById('admin-setup-panel');
+                if (setupPanel) {
+                    setupPanel.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
+                }
             }
 
-            // 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
+            // 4. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
             if (status !== 'waiting' && status !== 'game_over') {
                 renderInGameBoard(gameData, players);
             }
 
-            // 최종 게임 오버 종료 선언 시 정산 카드 연동
+            // 5. 최종 게임 오버 종료 선언 시 정산 카드 연동
             if (status === 'game_over') {
                 renderGameOverBoard(gameData, players);
             }
 
-            // 교사용 계정 관리 테이블 사전 빌드 동기화
+            // 교사용 독립 관리창용 데이터 버퍼 상시 동기화
             if (currentUser && currentUser.isAdmin) {
                 renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
             }
 
+            // 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링
             if (typeof window.renderGhostUI === 'function') {
                 window.renderGhostUI(gameData, players);
             }
@@ -63,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 600);
 });
 
+// [★교정 완결] 독립형 회원가입 관리 스크린 전환 제어반
 window.toggleAdminAccountsView = function() {
     if (!currentUser || !currentUser.isAdmin) return;
     
@@ -81,11 +93,13 @@ window.toggleAdminAccountsView = function() {
 window.exitAdminAccountsView = function() {
     isInAdminAccountsView = false;
     document.getElementById('admin-accounts-view').style.display = 'none';
+    
+    // 기본 레이아웃 가시성 원상 복구
     updateViewVisibility(currentStatus);
-    // 무부하 로컬 드로잉 강제 킥백 리로드
-    if (cachedGameData && cachedPlayers) {
-        renderInGameBoard(cachedGameData, cachedPlayers);
-    }
+    
+    // [★복구 핵심 장치] 화면을 빠져나오는 즉시 파이어베이스 리스너를 강제로 한 번 흔들어주어
+    // 대기방 교사 패널 및 추방 카드들이 엇박자 없이 0ms 만에 즉각 리렌더링되도록 킥백 트랜잭션을 쏩니다.
+    getDb().ref('game/quiz_score').transaction(c => c || 0);
 };
 
 function updateViewVisibility(status) {
@@ -469,4 +483,13 @@ function renderGameOverBoard(gameData, players) {
     if (adminReset) {
         adminReset.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
     }
+}
+
+function getRoleKoreanName(role) {
+    const dict = {
+        mafia: "마피아", citizen: "선량한 시민", spy: "스파이", detective: "사립탐정",
+        mudang: "신내림 무당", police: "열혈경찰", doctor: "명의사", soldier: "강철군인",
+        assemblyman: "국회의원", terrorist: "테러리스트", gangster: "뒷골목 건달", lovers: "사랑꾼 연인"
+    };
+    return dict[role] || "시민 요원";
 }
