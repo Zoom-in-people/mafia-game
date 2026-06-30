@@ -34,6 +34,9 @@
         <h2>⏳ 게임 대기실</h2>
         <div class="alert-box">다른 친구들이 모두 접속할 때까지 잠시 대기해 주세요!</div>
         
+        <h4 style="text-align: left; margin: 15px 0 5px 0; font-size: 14px; color:#555;">👥 현재 대기실 접속자 현황판</h4>
+        <div id="waiting-player-grid" class="grid-container"></div>
+        
         <div id="admin-setup-panel" style="display: none; border: 2px dashed #7b1fa2; padding: 15px; border-radius: 8px; margin-top: 15px;">
             <h4 style="color:#7b1fa2; margin-bottom:10px;">⚙️ 교사 전용 직업 정원 구성 및 퀴즈 단원 설정</h4>
             
@@ -63,6 +66,16 @@
             </div>
             
             <button onclick="handleStartGame()" style="background-color: #7b1fa2; margin-top: 15px;">🚀 마피아 게임 개시 (직업 랜덤 분배)</button>
+            
+            <div style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 12px;">
+                <h4 style="color: #7b1fa2; text-align: left; margin-bottom: 5px;">🗂️ 회원 가입 학생 계정 관리부</h4>
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>닉네임</th><th>가입 비밀번호</th><th>원격 제어 관리</th></tr>
+                    </thead>
+                    <tbody id="admin-accounts-table-body-waiting"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -134,6 +147,16 @@
                         <tr><th>상태</th><th>닉네임</th><th>배정 직업</th></tr>
                     </thead>
                     <tbody id="admin-live-roles-table"></tbody>
+                </table>
+            </div>
+
+            <div style="margin-top: 20px; border-top: 3px double #d32f2f; padding-top: 12px;">
+                <h4 style="color: #b71c1c; text-align: left; margin-bottom: 5px;">🗂️ 회원 가입 학생 계정 관리부</h4>
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>닉네임</th><th>가입 비밀번호</th><th>원격 제어 관리</th></tr>
+                    </thead>
+                    <tbody id="admin-accounts-table-body-game"></tbody>
                 </table>
             </div>
         </div>

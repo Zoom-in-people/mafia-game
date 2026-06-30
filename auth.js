@@ -1,6 +1,6 @@
 /**
  * 2. auth.js
- * 유저 인증(로그인/회원가입), 중복 로그인 방지, 퇴장/튕김 후 재접속 세션 복구 총괄 (정식 데이터 가드 버전)
+ * 유저 인증(로그인/회원가입), 중복 로그인 방지, 퇴장/튕김 후 재접속 세션 복구 총괄
  */
 
 // 로그인 / 회원가입 UI 입력 탭 스위칭용 헬퍼
@@ -23,7 +23,7 @@ function switchAuthTab(type) {
     }
 }
 
-// [신설] 회원가입 데이터베이스 등록 핸들러
+// 회원가입 데이터베이스 등록 핸들러
 function handleRegister() {
     const nickInput = document.getElementById('register-nickname');
     const pwInput = document.getElementById('register-password');
@@ -36,32 +36,28 @@ function handleRegister() {
     if (nick.length > 8) return alert('닉네임은 최대 8자까지만 허용됩니다.');
     if (!pw) return alert('사용하실 패스워드를 입력해 주세요.');
 
-    // 교사 및 서버 예약어 무단 점유 가드 차단
     if (['교사', 'teacher', 'admin', '관리자'].includes(nick)) {
         return alert('해당 닉네임은 마스터 예약어로 회원가입할 수 없습니다.');
     }
 
-    // 파이어베이스 accounts 노드를 직접 대조하여 가입 여부 식별
     getDb().ref(`accounts/${nick}`).get().then((snapshot) => {
         if (snapshot.exists()) {
             return alert('이미 존재하는 닉네임입니다. 로그인 탭에서 로그인을 진행해 주세요.');
         }
 
-        // DB에 신규 가입 계정 정보 생성 안전 적재
         getDb().ref(`accounts/${nick}`).set({
             password: pw,
             createdAt: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
             alert('회원가입이 정상 완료되었습니다! 로그인 탭으로 이동해 로그인해 주세요.');
             switchAuthTab('login');
-            // 입력 폼 필드 청소
             nickInput.value = '';
             pwInput.value = '';
         });
     }).catch(err => alert('회원가입 처리 중 데이터베이스 오류: ' + err.message));
 }
 
-// [교정] 정식 패스워드 대조식 로그인 및 세션 복구 처리 코어
+// 정식 패스워드 대조식 로그인 및 세션 복구 처리 코어
 function handleLogin() {
     const nickInput = document.getElementById('login-nickname');
     const pwInput = document.getElementById('login-password');
@@ -73,9 +69,9 @@ function handleLogin() {
     if (!nick) return alert('닉네임을 입력해 주세요.');
     if (!pw) return alert('비밀번호를 입력해 주세요.');
 
-    // 1. 교사 마스터 권한 로그인 특수 분기 가드
+    // 1. [교정 완료] 교사 마스터 권한 로그인 비밀번호 teacherpw 지정 매핑
     if (nick === '교사' || nick === 'teacher' || nick === 'admin') {
-        if (pw === 'teacherpw') { // 교과 제어용 마스터 암호 매핑
+        if (pw === 'teacherpw') { 
             currentUser = { id: 'admin_master', nick: '교사(관전)', isAdmin: true };
             currentStatus = 'waiting';
             triggerGameViewTransition();
@@ -103,7 +99,6 @@ function handleLogin() {
         let existingUid = null;
         let isAnActivePlayer = false;
 
-        // 인게임 진행 상태에서 명단 유무 체크 (튕김 유저 판별)
         if (gameStatus !== 'waiting') {
             for (let uid in gamePlayers) {
                 if (gamePlayers[uid].nickname === nick) {
@@ -114,7 +109,6 @@ function handleLogin() {
             }
         }
 
-        // 인게임이 아니라면 대기실 내 중복 로그인 세션 체크
         if (!existingUid) {
             for (let uid in users) {
                 if (users[uid].nickname === nick) {
@@ -125,12 +119,11 @@ function handleLogin() {
         }
 
         if (existingUid) {
-            // [정공법 튕김 복구 완료] 튕긴 아이가 로그인 창에서 재로그인하면, 기존 UID 세션을 물려받아 로봇 제어권을 해제하고 정상 난입시킵니다.
             if (gameStatus !== 'waiting' && isAnActivePlayer) {
                 currentUser = { id: existingUid, nick: nick, isAdmin: false };
                 
                 const restoreUpdates = {};
-                restoreUpdates[`game/players/${existingUid}/isAiControlled`] = false; // AI 오토메이션 전면 반환 해제
+                restoreUpdates[`game/players/${existingUid}/isAiControlled`] = false; 
                 restoreUpdates[`rooms/users/${existingUid}`] = { nickname: nick, joinedAt: firebase.database.ServerValue.TIMESTAMP };
                 
                 getDb().ref().update(restoreUpdates).then(() => {
@@ -141,12 +134,10 @@ function handleLogin() {
                 alert('해당 계정은 이미 대기실에 로그인 상태로 접속 중입니다. 중복 진입은 거부됩니다.');
             }
         } else {
-            // 이미 게임이 시작되었을 때, 가입만 해두고 대기실에 없던 제3의 유저가 무단 난입하는 현상 가드
             if (gameStatus !== 'waiting') {
                 return alert('이미 게임 세션이 가동 중이므로 새로 난입할 수 없습니다. 다음 판을 기다려 주세요.');
             }
 
-            // 대기방 최초 입장 적재 프로세스
             const newUid = 'stu_' + Math.random().toString(36).substr(2, 9);
             currentUser = { id: newUid, nick: nick, isAdmin: false };
 
@@ -184,7 +175,6 @@ function handleExit() {
     }
 }
 
-// 브라우저 캐시 보존 없이 완벽하게 로그인 창으로 리부팅
 function clearSession() {
     currentUser = null;
     location.reload(); 

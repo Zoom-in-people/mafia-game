@@ -1,9 +1,8 @@
 /**
  * 5-1. ui-render.js
- * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (로컬 캐싱 최적화판)
+ * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (대기실&계정관리 복원 버전)
  */
 
-// [★버그 완벽 해결] 서버 통신 부하를 없애기 위해 가장 최신의 실시간 데이터를 보관하는 로컬 캐시 버퍼 변수
 let cachedGameData = null;
 let cachedPlayers = null;
 
@@ -12,32 +11,45 @@ document.addEventListener('DOMContentLoaded', () => {
         const db = getDb();
         if (!db) return;
 
-        // [핵심 파이프라인] 'game' 노드의 모든 변화를 밀리초 단위로 감시하는 유일 전역 리스너
-        db.ref('game').on('value', (snapshot) => {
-            const gameData = snapshot.val() || {};
+        // [★리스너 전면 고도화] 대기실과 회원명단을 동시 캐치하기 위해 root 전체를 구독 감시합니다.
+        db.ref().on('value', (snapshot) => {
+            const rootData = snapshot.val() || {};
+            const gameData = rootData.game || {};
             const players = gameData.players || {};
+            const users = rootData.rooms?.users || {};
+            const accounts = rootData.accounts || {};
             const status = gameData.status || 'waiting';
 
-            currentStatus = status; // 전역 변수 동기화
+            currentStatus = status; 
             
-            // [★로컬 동기화] 실시간 패킷이 올 때마다 로컬 메모리에 안전하게 상시 백업 캐싱합니다.
             cachedGameData = gameData;
             cachedPlayers = players;
 
             // 1. 세션 상태에 따른 레이어 화면 전환 제어
             updateViewVisibility(status);
 
-            // 2. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
+            // 2. [★기능 복원] 대기실 상태일 때 실시간 접속자 명단 닉네임 카드를 렌더링합니다.
+            if (status === 'waiting') {
+                renderWaitingPlayerGrid(users);
+            }
+
+            // 3. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
             if (status !== 'waiting' && status !== 'game_over') {
                 renderInGameBoard(gameData, players);
             }
 
-            // 3. 최종 게임 오버 종료 선언 시 정산 카드 연동
+            // 4. 최종 게임 오버 종료 선언 시 정산 카드 연동
             if (status === 'game_over') {
                 renderGameOverBoard(gameData, players);
             }
 
-            // 4. 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링 (ui-ghost-renderer.js 연동)
+            // 5. [★기능 신설] 관리자 교사 계정일 때만 원격 가입 계정 대시보드를 드로잉 마킹합니다.
+            if (currentUser && currentUser.isAdmin) {
+                renderAdminAccountManager(accounts, 'admin-accounts-table-body-waiting');
+                renderAdminAccountManager(accounts, 'admin-accounts-table-body-game');
+            }
+
+            // 6. 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링
             if (typeof window.renderGhostUI === 'function') {
                 window.renderGhostUI(gameData, players);
             }
@@ -66,10 +78,56 @@ function updateViewVisibility(status) {
     if (gameOverView) gameOverView.style.display = (status === 'game_over') ? 'block' : 'none';
 }
 
-// 외부 스크립트 인터셉터용 브릿지 공개
 window.triggerGameViewTransition = function() {
     if (typeof currentStatus !== 'undefined') updateViewVisibility(currentStatus);
 };
+
+// [★기능 복원 코어] 대기실 입장 유저들의 실시간 닉네임 격자판 렌더러
+function renderWaitingPlayerGrid(users) {
+    const container = document.getElementById('waiting-player-grid');
+    if (!container) return;
+    container.innerHTML = ''; // 누적 방지 완전 청소
+
+    const userList = Object.values(users);
+    if (userList.length === 0) {
+        container.innerHTML = `<div style="text-align:center; color:#999; font-size:13px; width:100%; padding:10px;">현재 대기방에 접속 중인 학생이 없습니다.</div>`;
+        return;
+    }
+
+    userList.forEach(u => {
+        container.innerHTML += `
+            <div class="grid-card" style="cursor:default;">
+                <span>${u.nickname}</span>
+            </div>
+        `;
+    });
+}
+
+// [★기능 신설 코어] 회원가입된 학생 데이터베이스 목록 및 제어반 사출기
+function renderAdminAccountManager(accounts, containerId) {
+    const tbody = document.getElementById(containerId);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const accountEntries = Object.entries(accounts);
+    if (accountEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#999;">데이터베이스에 등록된 가입 정보가 없습니다.</td></tr>`;
+        return;
+    }
+
+    accountEntries.forEach(([nick, data]) => {
+        tbody.innerHTML += `
+            <tr>
+                <td><b>${nick}</b></td>
+                <td><code style="font-size:14px; color:#c2185b;">${data.password}</code></td>
+                <td>
+                    <button class="secret-reveal-btn btn-info" style="width:auto; margin:0 2px; padding:4px 8px; font-size:12px; display:inline-block;" onclick="window.handleModifyAccount('${nick}')">수정</button>
+                    <button class="secret-reveal-btn btn-danger" style="width:auto; margin:0 2px; padding:4px 8px; font-size:12px; display:inline-block;" onclick="window.handleDeleteAccount('${nick}')">삭제</button>
+                </td>
+            </tr>
+        `;
+    });
+}
 
 // 인게임 전반 메인보드 드로잉 오케스트레이터
 function renderInGameBoard(gameData, players) {
@@ -78,20 +136,17 @@ function renderInGameBoard(gameData, players) {
     const voteState = gameData.vote_state || 'none';
     const report = gameData.morning_report || '';
 
-    // 1. 상단 라운드 텍스트 칭호 동적 변경
     const roundTitle = document.getElementById('round-title');
     if (roundTitle) {
         roundTitle.innerText = `제 ${turn}회차 - ${status === 'day_discuss' ? '낮 ☀️' : '밤 🌙'}`;
     }
 
-    // 2. 사회자 방송 멘트 전광판 알림 및 야간 암전 스타일 바인딩
     const statusMsg = document.getElementById('status-message');
     if (statusMsg) {
         statusMsg.innerText = report;
         statusMsg.className = (status === 'night_action') ? "alert-box night" : "alert-box";
     }
 
-    // 3. 실시간 강제 팝업 브로드캐스트 얼럿 디텍터
     if (gameData.last_popup_alert_text && gameData.last_popup_alert_text !== 'none') {
         const localCachedAlert = localStorage.getItem('mafia_last_processed_alert');
         if (localCachedAlert !== gameData.last_popup_alert_text) {
@@ -100,7 +155,6 @@ function renderInGameBoard(gameData, players) {
         }
     }
 
-    // 4. 내 소속 정보 요약바 출력
     if (currentUser && !currentUser.isAdmin) {
         const myData = players[currentUser.id];
         if (myData) {
@@ -113,25 +167,16 @@ function renderInGameBoard(gameData, players) {
         document.getElementById('my-role-name').innerText = "실시간 모니터링 모드 가동 중";
     }
 
-    // 5. 개인 비밀 일지장 및 전체 히스토리 로그 박스 마킹
     renderLogsAndChronicles(gameData, players);
-
-    // 6. 28인 격자판 플레이어 카드 렌더러 루프 구역 가동
     renderPlayerGridContainer(gameData, players);
-
-    // 7. 학생용 투표 패널 제어 인터랙션 사출
     renderStudentActionPanel(gameData, players);
-
-    // 8. 교사용 중앙 관제실 패널 활성화 유동 제어
     renderTeacherControlTower(gameData, players);
 }
 
-// 플레이어 메인 격자판 사출 엔진
 function renderPlayerGridContainer(gameData, players) {
     const gridContainer = document.getElementById('player-grid');
     if (!gridContainer) return;
 
-    // 기존 화면 완전 초기화 청소
     gridContainer.innerHTML = '';
 
     const myId = currentUser ? currentUser.id : 'none';
@@ -148,7 +193,6 @@ function renderPlayerGridContainer(gameData, players) {
 
         if (!p.isAlive) cardClasses.push('dead');
 
-        // 터치 지목 시 하이라이트 효과 정렬
         if (status === 'day_discuss' && voteState === 'voting' && myData.dayVote === id) cardClasses.push('my-selected');
         if (status === 'night_action' && myData.nightTarget === id) cardClasses.push('my-selected');
         if (status === 'night_action' && ['citizen', 'lovers', 'soldier', 'assemblyman', 'terrorist'].includes(myRole) && myData.suspect === id) cardClasses.push('my-selected');
@@ -178,7 +222,6 @@ function renderPlayerGridContainer(gameData, players) {
     }
 }
 
-// 격자판 카드 클릭 핸들러
 window.handleGridCardClick = function(targetUid) {
     if (!currentUser || currentUser.isAdmin) return; 
     
@@ -221,7 +264,6 @@ window.handleGridCardClick = function(targetUid) {
     });
 };
 
-// 학생 전용 찬반 투표 판넬 활성 제어기
 function renderStudentActionPanel(gameData, players) {
     const panel = document.getElementById('student-vote-panel');
     const actionArea = document.getElementById('vote-action-area');
@@ -264,7 +306,6 @@ function renderStudentActionPanel(gameData, players) {
     }
 }
 
-// 사형대 서명 버튼 트리거 핸들러
 window.submitTrialDecision = function(decision) {
     if (!currentUser) return;
     getDb().ref(`game/players/${currentUser.id}`).update({
@@ -272,7 +313,6 @@ window.submitTrialDecision = function(decision) {
     }).then(() => console.log(`재판 찬반 표결 완료 -> ${decision}`));
 };
 
-// 일지장 및 크로니클 연대기 실시간 목록 사출기
 function renderLogsAndChronicles(gameData, players) {
     const logBox = document.getElementById('my-personal-log-box');
     const logList = document.getElementById('personal-log-list');
@@ -300,7 +340,6 @@ function renderLogsAndChronicles(gameData, players) {
     }
 }
 
-// 교사 마스터 계정 전용 실시간 관제 대시보드 뷰 제어
 function renderTeacherControlTower(gameData, players) {
     const adminPanel = document.getElementById('admin-game-controls');
     if (!adminPanel) return;
@@ -352,18 +391,13 @@ function renderTeacherControlTower(gameData, players) {
     }
 }
 
-// [★버그 완벽 해결] 서버 연동을 완전 배제하고, 로컬 캐시 메모리를 강제 리드로잉하는 순수 오프라인 토글러
 window.toggleAdminRevealSecret = function(uid) {
     adminRevealMap[uid] = !adminRevealMap[uid];
-    
-    // 무의미하게 네트워크 트랜잭션을 쏘던 기존 방식을 완전히 철폐합니다.
-    // 백업해 두었던 로컬 캐시 오브젝트를 직접 밀어 넣어 교사 본인 디바이스 화면만 0초 만에 갱신합니다.
     if (cachedGameData && cachedPlayers) {
         renderTeacherControlTower(cachedGameData, cachedPlayers);
     }
 };
 
-// 게임 오버 최종 전광판 정산 보드 사출 엔진
 function renderGameOverBoard(gameData, players) {
     const wTitle = document.getElementById('winner-title');
     const fReport = document.getElementById('final-report');
