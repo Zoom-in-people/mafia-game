@@ -22,15 +22,24 @@ window.processDayToNightShamanSettlement = function(parentUpdates) {
                 if (side === 'mafia_side') mafiaVotes++;
             });
             
-            let finalGhostVerdict = "판별 유보 (유령 투표 없음)";
-            if (citizenVotes > mafiaVotes) finalGhostVerdict = "시민 편⚪";
-            else if (mafiaVotes > citizenVotes) finalGhostVerdict = "마피아 편🔴";
-            else if (citizenVotes > 0 && citizenVotes === mafiaVotes) finalGhostVerdict = "의견 대립 (동표)";
+            // [★수정 반영] 죽은 사람이 단 한 명도 없거나 유령 투표가 전무할 때와 동표 의견 대립 상황의 예외 처리 분기 구축
+            let deadCount = Object.values(players).filter(p => !p.isAlive).length;
+            let shamanLogLine = "";
+
+            if (deadCount === 0 || (citizenVotes === 0 && mafiaVotes === 0)) {
+                shamanLogLine = "무당에게 영혼의 제보 결과를 유령이 없어 확인이 불가했습니다.";
+            } else if (citizenVotes === mafiaVotes) {
+                shamanLogLine = `[제 ${currentTurnVal}회차 밤 영혼의 제보] 낮 동안 유령들이 투표한 결과, [${players[lastShamanTargetUid].nickname}] 학생은 '의견 대립 (동일한 투표결과)' 입니다.`;
+            } else {
+                let finalGhostVerdict = "";
+                if (citizenVotes > mafiaVotes) finalGhostVerdict = "시민 편⚪";
+                else if (mafiaVotes > citizenVotes) finalGhostVerdict = "마피아 편🔴";
+                shamanLogLine = `[제 ${currentTurnVal}회차 밤 영혼의 제보] 낮 동안 유령들이 투표한 결과, [${players[lastShamanTargetUid].nickname}] 학생은 '${finalGhostVerdict}' 진영 소속이라고 합니다.`;
+            }
 
             for (let id in players) {
                 if (players[id].role === 'mudang' && players[id].isAlive) {
                     let mLog = (players[id].personalLog === "none") ? "" : (players[id].personalLog || "");
-                    let shamanLogLine = `[제 ${currentTurnVal}회차 밤 영혼의 제보] 낮 동안 유령들이 투표한 결과, [${players[lastShamanTargetUid].nickname}] 학생은 '${finalGhostVerdict}' 진영 소속이라고 합니다.`;
                     updates[`game/players/${id}/personalLog`] = mLog ? `${mLog}\n${shamanLogLine}` : shamanLogLine;
                 }
             }
@@ -53,10 +62,10 @@ function handleNextStage() {
     if (!currentUser || !currentUser.isAdmin) return;
     getDb().ref('game/status').get().then(snap => {
         if (snap.val() === 'day_discuss') {
-            // 낮 자유 토론에서 밤으로 강제 강등 전이 시 설명 문구 초기 교정 주입
+            // [★수정 반영] 낮 자유 토론에서 밤으로 전이 시 일반 시민의 참여 독려 지침 문구를 완벽하게 매핑 주입합니다.
             const initialUpdates = { 
                 'game/status': 'night_action',
-                'game/morning_report': "밤이 되었습니다. 마피아는 저격 대상을 지목하고, 특수 직업군은 고유 능력을 발동해 주세요."
+                'game/morning_report': "밤이 되었습니다. 마피아는 저격 대상을 지목하고, 특수 직업군은 고유 능력을 발동해 주세요. 일반 시민과 밤에 능력이 없는 직업군은 마피아로 의심되는 사람을 선택해주세요."
             };
             window.processDayToNightShamanSettlement(initialUpdates);
         } else {
@@ -153,7 +162,8 @@ function processNightActions() {
                     for (let id in players) { if (players[id].role === 'lovers' && id !== finalMTarget && players[id].isAlive) { substituteUid = id; break; } }
                     if (substituteUid !== "none") {
                         deadList.push(substituteUid); updates[`game/players/${substituteUid}/deathReason`] = "연인 대신 희생";
-                        reports.push(`💕 마피아가 연인을 습격했으나, 다른 연인이 대신 몸을 던져 사망했습니다.`);
+                        // [★수정 반영] 피습 유저와 수호 희생 연인의 실시간 동적 닉네임 치환 규칙 보강
+                        reports.push(`연인 [${targetUser.nickname}]을 습격했으나, 다른 연인[${players[substituteUid].nickname}]이 대신 몸을 던져 사망했습니다.`);
                     } else {
                         deadList.push(finalMTarget); updates[`game/players/${finalMTarget}/deathReason`] = "마피아 피습";
                         reports.push(`💔 홀로 남은 연인 [${targetUser.nickname}] 학생이 피습을 받아 사망했습니다.`);
