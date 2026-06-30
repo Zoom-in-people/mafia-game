@@ -23,16 +23,21 @@ function getRoleKoreanName(role) {
     const cleanRole = role.toLowerCase().trim();
     
     // 게임에서 사용하는 역할 목록에 맞추어 수정 가능합니다.
+    // [★오류 교정] 실제 게임 데이터(role 값)와 일치하지 않던 매핑을 전면 정정했습니다.
+    // (예: 'detective'가 '경찰'로 잘못 매핑되어 있었고, spy/mudang/police 등 다수 직업이 누락되어 있었습니다.)
     const roleMap = {
         'mafia': '마피아',
         'citizen': '시민',
-        'civilian': '시민',
+        'spy': '스파이',
+        'detective': '사립탐정',
+        'mudang': '무당',
+        'police': '경찰',
         'doctor': '의사',
-        'cop': '경찰',
-        'detective': '경찰',
-        'reporter': '기자',
-        'politician': '정치인',
-        'soldier': '군인'
+        'soldier': '군인',
+        'assemblyman': '국회의원',
+        'terrorist': '테러리스트',
+        'gangster': '건달',
+        'lovers': '연인'
     };
     
     // 매핑된 한국어 이름이 없으면 원래 들어온 값을 그대로 반환
@@ -155,6 +160,15 @@ window.exitAdminAccountsView = function() {
     document.getElementById('admin-accounts-view').style.display = 'none';
     window.rerenderAllUI();
     getDb().ref('game/quiz_score').transaction(c => c || 0);
+};
+
+// [★오류 교정 - 신규 추가] 교사용 "실시간 학생 직업 일람표"의 "직업 보기/다시 숨기기" 버튼이
+// 호출하던 toggleAdminRevealSecret 함수가 누락되어 있어 클릭 시 ReferenceError가 발생하던 문제를 해결합니다.
+// adminRevealMap(config.js에 선언됨)의 해당 uid 값을 토글하고 즉시 재렌더링합니다.
+window.toggleAdminRevealSecret = function(uid) {
+    if (!currentUser || !currentUser.isAdmin) return;
+    adminRevealMap[uid] = !adminRevealMap[uid];
+    window.rerenderAllUI();
 };
 
 function renderWaitingPlayerGrid(users) {
@@ -465,5 +479,63 @@ function renderTeacherControlTower(gameData, players) {
                 </tr>
             `;
         });
+    }
+}
+
+// [★오류 교정 - 신규 추가] 게임 종료 화면 렌더 함수가 통째로 누락되어 있었습니다.
+// window.rerenderAllUI()에서 status === 'game_over'일 때 이 함수를 호출하지만 정의가 없어
+// 게임이 끝나는 즉시 ReferenceError가 발생, 그 이후 모든 실시간 화면 갱신이 멈추는
+// (승리 진영/명단 미표시, 교사용 리셋 버튼 영구 비노출) 치명적 버그를 일으키고 있었습니다.
+// style.css에 이미 준비되어 있던 .character-pool / .role-character-card 등 디자인을 그대로 활용합니다.
+function renderGameOverBoard(gameData, players) {
+    const winnerTitle = document.getElementById('winner-title');
+    const finalReport = document.getElementById('final-report');
+    const mafiaList = document.getElementById('final-mafia-list');
+    const citizenList = document.getElementById('final-citizen-list');
+    const resetControls = document.getElementById('admin-reset-controls');
+
+    if (!winnerTitle || !finalReport || !mafiaList || !citizenList) return;
+
+    const winner = gameData.winner || 'none';
+
+    if (winner === 'mafia_win') {
+        winnerTitle.innerText = "🔴 마피아 진영 최종 승리! 🔴";
+    } else if (winner === 'citizen_win') {
+        winnerTitle.innerText = "⚪ 시민 연합군 최종 승리! ⚪";
+    } else {
+        winnerTitle.innerText = "🎉 게임 종료 🎉";
+    }
+
+    finalReport.innerText = gameData.morning_report || '';
+
+    mafiaList.innerHTML = '';
+    citizenList.innerHTML = '';
+
+    Object.entries(players).forEach(([uid, p]) => {
+        // game-mechanics.js / phase-day-vote.js와 동일한 기준: 마피아와 스파이를 마피아 진영으로 분류
+        const isMafiaSide = (p.role === 'mafia' || p.role === 'spy');
+        const icon = roleIcons[p.role] || '❓';
+        const statusText = p.isAlive ? '생존' : '사망';
+        const statusClass = p.isAlive ? 'alive' : 'dead';
+
+        const cardHtml = `
+            <div class="role-character-card">
+                <div class="char-icon">${icon}</div>
+                <div class="char-nick">${p.nickname}</div>
+                <div class="char-role">${getRoleKoreanName(p.role)}</div>
+                <span class="char-status-badge ${statusClass}">${statusText}</span>
+            </div>
+        `;
+
+        if (isMafiaSide) {
+            mafiaList.innerHTML += cardHtml;
+        } else {
+            citizenList.innerHTML += cardHtml;
+        }
+    });
+
+    // 대기실 복구 버튼은 교사 계정에게만 노출
+    if (resetControls) {
+        resetControls.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
     }
 }

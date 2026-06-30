@@ -37,6 +37,16 @@ window.handleModifyAccount = function(nick) {
     }).catch(err => alert('수정 실패: ' + err.message));
 };
 
+// [★오류 교정 - 신규 추가] 대기실 "단원 난이도 설정" 드롭다운이 호출하던 changeQuizLevel 함수가
+// 누락되어 있었습니다. 이 때문에 교사가 단원을 변경해도 ReferenceError만 발생하고
+// 실제로는 game/quiz_level 값이 저장되지 않아, 유령 퀴즈가 항상 기본값(2-1)으로만 출제되는 문제가 있었습니다.
+window.changeQuizLevel = function(level) {
+    if (!currentUser || !currentUser.isAdmin) return;
+    getDb().ref('game/quiz_level').set(level).catch(err => {
+        console.error('퀴즈 난이도 설정 오류:', err);
+    });
+};
+
 // [★버그 전면 교정] 멈춰버린 28인 직업 할당 난수 셔플 파이프라인 무결성 복구
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
@@ -121,6 +131,10 @@ window.handleForceStopGame = function() {
 };
 
 function handleResetToWaiting() {
+    // [★오류 교정] 이 함수는 다른 모든 교사 전용 함수와 달리 관리자 권한 검사가 빠져 있었습니다.
+    // 화면상 버튼은 교사에게만 노출되지만, 콘솔 등에서 직접 호출되는 것을 막기 위한 방어 코드를 추가합니다.
+    if (!currentUser || !currentUser.isAdmin) return;
+
     getDb().ref('game/players').get().then((snapshot) => {
         const players = snapshot.val() || {};
         const updates = {};
