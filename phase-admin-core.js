@@ -112,6 +112,7 @@ function handleStartGame() {
         updates['game/history_logs'] = ["게임이 흥미진진하게 시작되었습니다!"];
         updates['game/last_night_assault'] = "none";
         updates['game/last_popup_alert_text'] = "none";
+        updates['game/last_popup_alert_id'] = "none";
         updates['game/shaman_target_uid'] = "none";
         updates['game/shaman_ghost_votes'] = "none";
         updates['game/day_vote_retry_count'] = 0;
@@ -156,6 +157,7 @@ function handleResetToWaiting() {
         updates['game/history_logs'] = ["교사에 의해 새로운 대기실 세션이 강제 리셋되었습니다."];
         updates['game/last_night_assault'] = "none";
         updates['game/last_popup_alert_text'] = "none";
+        updates['game/last_popup_alert_id'] = "none";
         updates['game/shaman_target_uid'] = "none";
         updates['game/shaman_ghost_votes'] = "none";
         updates['game/day_vote_retry_count'] = 0;

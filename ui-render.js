@@ -240,11 +240,19 @@ function renderInGameBoard(gameData, players) {
         statusMsg.className = (status === 'night_action') ? "alert-box night" : "alert-box";
     }
 
-    // [★교정 완결] 학생용/교사용 화면에 전광판 긴급 팝업이 전송되어 오면 예쁜 커스텀 모달 레이어로 사출시킵니다.
+    // [★오류 교정] 기존에는 알림 '문구 내용'을 그대로 localStorage 키로 비교했습니다.
+    // 문제는 "밤사이에 평화로운 정적만이 흘렀습니다", "현재 1회차 재투표 진행"처럼
+    // 회차와 무관하게 동일한 문구가 반복되는 경우가 많다는 점입니다.
+    // 어떤 학생은 그 문구를 이전 라운드에 이미 한 번 봐서 localStorage에 캐시되어 있고,
+    // 어떤 학생은 아직 본 적이 없어서 — 같은 사건인데도 사람마다 팝업이 뜨거나 안 뜨는 문제가 발생했습니다.
+    // 그래서 문구 대신, 각 알림이 발생할 때마다 서버에서 새로 발급되는 고유 타임스탬프(last_popup_alert_id)로
+    // "이미 본 알림인지"를 판단하도록 수정했습니다. 텍스트가 같아도 이벤트(타임스탬프)는 항상 다르므로
+    // 모든 학생에게 100% 동일하게 표시됩니다.
     if (gameData.last_popup_alert_text && gameData.last_popup_alert_text !== 'none') {
-        const localCachedAlert = localStorage.getItem('mafia_last_processed_alert');
-        if (localCachedAlert !== gameData.last_popup_alert_text) {
-            localStorage.setItem('mafia_last_processed_alert', gameData.last_popup_alert_text);
+        const popupEventId = String(gameData.last_popup_alert_id || gameData.last_popup_alert_text);
+        const localCachedAlertId = localStorage.getItem('mafia_last_processed_alert_id');
+        if (localCachedAlertId !== popupEventId) {
+            localStorage.setItem('mafia_last_processed_alert_id', popupEventId);
             window.showCustomAlertModal(gameData.last_popup_alert_text);
         }
     }
