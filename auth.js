@@ -75,7 +75,7 @@ function handleLogin() {
 
     // 1. 교사 마스터 권한 로그인 특수 분기 가드
     if (nick === '교사' || nick === 'teacher' || nick === 'admin') {
-        if (pw === '1234') { // 교과 제어용 마스터 암호 매핑
+        if (pw === 'teacherpw') { // 교과 제어용 마스터 암호 매핑
             currentUser = { id: 'admin_master', nick: '교사(관전)', isAdmin: true };
             currentStatus = 'waiting';
             triggerGameViewTransition();

@@ -1,6 +1,6 @@
 /**
  * style.css
- * 교실 마피아 게임 화면 구성 및 반응형 디바이스 UI 최적화 스타일시트 (정렬 완결판)
+ * 교실 마피아 게임 화면 구성 및 반응형 디바이스 UI 최적화 스타일시트 (체크박스 버그 교정판)
  */
 
 /* [1] 전역 테마 및 기본 배경 설정 */
@@ -132,7 +132,8 @@ h1, h2, h3, h4 {
 .badge.green { background: #4caf50; }
 
 /* [5] 입력 폼 및 직관적 버튼 컴포넌트 */
-input, select {
+/* [★버그 교정] 일반 텍스트, 패스워드, 숫자 입력창에만 100% 너비를 적용하도록 타겟을 분리했습니다. */
+input[type="text"], input[type="password"], input[type="number"], select {
     width: 100%;
     padding: 10px;
     margin: 8px 0;
@@ -162,6 +163,32 @@ button:hover {
 .btn-danger { background-color: #d32f2f; }
 .btn-secondary { background-color: #7b1fa2; }
 .btn-info { background-color: #0288d1; }
+
+/* [5-1] 교사 전용 특수 직업 선택 정렬 (정렬 신설) */
+.admin-setup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    font-size: 13.5px;
+    text-align: left; /* 글씨 좌측 정렬 고정 */
+    margin-top: 10px;
+}
+
+.admin-setup-grid label {
+    display: flex;
+    align-items: center; /* 체크박스와 이모지/글씨 수평 중앙 정렬 */
+    gap: 8px; /* 체크박스와 텍스트 사이 공백 간격 */
+    cursor: pointer;
+    padding: 4px 0;
+}
+
+/* 체크박스 고유 크기 잠금 및 미사여구 늘어남 차단 */
+.admin-setup-grid input[type="checkbox"] {
+    width: auto;
+    height: auto;
+    margin: 0;
+    cursor: pointer;
+}
 
 /* [6] 로그 아카이브 멀티 뷰 터미널 */
 .log-box {
