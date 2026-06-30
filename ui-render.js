@@ -1,12 +1,15 @@
 /**
  * 5-1. ui-render.js
- * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (교사 패널 완전 복구판)
+ * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (동기화 엇박자 완벽 교정판)
  */
 
+/* [★중앙 집중형 전역 캐시 메모리 시스템] */
 let cachedGameData = null;
 let cachedPlayers = null;
+let cachedUsers = null;
+let cachedAccounts = null;
 
-// 회원가입 관리 창이 열렸을 때 실시간 패킷이 화면을 대기실로 강제 튕겨내는 현상을 막는 뷰 잠금장치
+// 회원가입 관리 패널 독립 뷰 가동 상태 플래그
 let isInAdminAccountsView = false;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,97 +17,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const db = getDb();
         if (!db) return;
 
-        // [핵심 파이프라인] 루트 노드를 감시하여 대기방, 인게임, 회원정보를 실시간 통합 트리거링
+        // [핵심 파이프라인] 실시간 패킷 수신 시 즉각 로컬 캐시를 갱신하고 통합 렌더러를 가동합니다.
         db.ref().on('value', (snapshot) => {
             const rootData = snapshot.val() || {};
-            const gameData = rootData.game || {};
-            const players = gameData.players || {};
-            const users = rootData.rooms?.users || {};
-            const accounts = rootData.accounts || {};
-            const status = gameData.status || 'waiting';
-
-            currentStatus = status; 
             
-            cachedGameData = gameData;
-            cachedPlayers = players;
+            // 로컬 캐시 버퍼에 상시 동기화 적재
+            cachedGameData = rootData.game || {};
+            cachedPlayers = cachedGameData.players || {};
+            cachedUsers = rootData.rooms?.users || {};
+            cachedAccounts = rootData.accounts || {};
+            
+            // 데이터베이스의 현재 상태를 전역 타임라인에 동기화
+            currentStatus = cachedGameData.status || 'waiting';
 
-            // 1. 회원수정 전용 독립 화면이 열려 있다면 인게임 화면 전환을 차단하고 계정 테이블만 실시간 드로잉
-            if (isInAdminAccountsView) {
-                if (currentUser && currentUser.isAdmin) {
-                    renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
-                }
-                return;
-            }
-
-            // 2. 세션 상태에 따른 레이어 화면 전환 제어
-            updateViewVisibility(status);
-
-            // 3. 대기실 상태일 때 실시간 접속자 명단 카드 및 [교사 전용 설정 패널] 노출 제어
-            if (status === 'waiting') {
-                renderWaitingPlayerGrid(users);
-                
-                // [★버그 완전 교정] 외부 가드에 의존하지 않고, 리스너 내부에서 교사용 설정 패널의 가시성을 다이렉트로 강제 집행합니다.
-                // 이 가드가 도입되어 독립 화면에서 복귀하거나 학생이 난입해도 교사용 대기실 통제탑이 절대 사라지지 않습니다.
-                const setupPanel = document.getElementById('admin-setup-panel');
-                if (setupPanel) {
-                    setupPanel.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
-                }
-            }
-
-            // 4. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
-            if (status !== 'waiting' && status !== 'game_over') {
-                renderInGameBoard(gameData, players);
-            }
-
-            // 5. 최종 게임 오버 종료 선언 시 정산 카드 연동
-            if (status === 'game_over') {
-                renderGameOverBoard(gameData, players);
-            }
-
-            // 교사용 독립 관리창용 데이터 버퍼 상시 동기화
-            if (currentUser && currentUser.isAdmin) {
-                renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
-            }
-
-            // 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링
-            if (typeof window.renderGhostUI === 'function') {
-                window.renderGhostUI(gameData, players);
-            }
+            // 통합 UI 렌더러 가동
+            window.rerenderAllUI();
         });
     }, 600);
 });
 
-// [★교정 완결] 독립형 회원가입 관리 스크린 전환 제어반
-window.toggleAdminAccountsView = function() {
-    if (!currentUser || !currentUser.isAdmin) return;
-    
-    isInAdminAccountsView = !isInAdminAccountsView;
+// [★버그 원천 차단] 비동기 레이스 컨디션을 박멸하기 위한 통합 UI 렌더링 코어 오케스트레이터
+window.rerenderAllUI = function() {
+    // 최초 파이어베이스 패킷 수신 전이라면 연산을 유보합니다.
+    if (!cachedGameData) return; 
+
+    const status = currentStatus || 'waiting';
+
+    // 1. 교사 전용 독립형 회원 가입 정보 관리 센터 개방 시의 예외 렌더링 가드
     if (isInAdminAccountsView) {
-        document.getElementById('auth-view').style.display = 'none';
-        document.getElementById('waiting-view').style.display = 'none';
-        document.getElementById('game-view').style.display = 'none';
-        document.getElementById('game-over-view').style.display = 'none';
-        document.getElementById('admin-accounts-view').style.display = 'block';
-    } else {
-        window.exitAdminAccountsView();
+        if (currentUser && currentUser.isAdmin) {
+            renderAdminAccountManager(cachedAccounts || {}, 'admin-accounts-table-body-dedicated');
+        }
+        return;
     }
-};
 
-window.exitAdminAccountsView = function() {
-    isInAdminAccountsView = false;
-    document.getElementById('admin-accounts-view').style.display = 'none';
-    
-    // 기본 레이아웃 가시성 원상 복구
-    updateViewVisibility(currentStatus);
-    
-    // [★복구 핵심 장치] 화면을 빠져나오는 즉시 파이어베이스 리스너를 강제로 한 번 흔들어주어
-    // 대기방 교사 패널 및 추방 카드들이 엇박자 없이 0ms 만에 즉각 리렌더링되도록 킥백 트랜잭션을 쏩니다.
-    getDb().ref('game/quiz_score').transaction(c => c || 0);
-};
-
-function updateViewVisibility(status) {
-    if (isInAdminAccountsView) return; 
-    
+    // 2. 로그인 유무 및 게임 세션 상태에 따른 대분류 화면 가시성 락 스위칭
     const authView = document.getElementById('auth-view');
     const waitingView = document.getElementById('waiting-view');
     const gameView = document.getElementById('game-view');
@@ -122,12 +69,70 @@ function updateViewVisibility(status) {
     if (waitingView) waitingView.style.display = (status === 'waiting') ? 'block' : 'none';
     if (gameView) gameView.style.display = (status !== 'waiting' && status !== 'game_over') ? 'block' : 'none';
     if (gameOverView) gameOverView.style.display = (status === 'game_over') ? 'block' : 'none';
-}
 
-window.triggerGameViewTransition = function() {
-    if (typeof currentStatus !== 'undefined') updateViewVisibility(currentStatus);
+    // 3. [대기실 상태 - waiting] 실시간 학생 입장 카드 및 교사 전용 인원 분배 제어탑 강제 렌더링
+    if (status === 'waiting') {
+        renderWaitingPlayerGrid(cachedUsers || {});
+        
+        // 로그인 성공 즉시 동기식으로 교사 권한을 검증하여 대기실 설정창을 칼같이 표출시킵니다.
+        const setupPanel = document.getElementById('admin-setup-panel');
+        if (setupPanel) {
+            setupPanel.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
+        }
+    }
+
+    // 4. [인게임 진행 상태 - day_discuss / night_action] 메인 게임 제어반 및 격자 생존판 드로잉
+    if (status !== 'waiting' && status !== 'game_over') {
+        renderInGameBoard(cachedGameData, cachedPlayers || {});
+    }
+
+    // 5. [최종 게임오버 상태 - game_over] 결과 전광판 정산 화면 드로잉
+    if (status === 'game_over') {
+        renderGameOverBoard(cachedGameData, cachedPlayers || {});
+    }
+
+    // 6. 독립 관리 센터 내부용 테이블 뷰 실시간 바인딩
+    if (currentUser && currentUser.isAdmin) {
+        renderAdminAccountManager(cachedAccounts || {}, 'admin-accounts-table-body-dedicated');
+    }
+
+    // 7. 사망 유령 전용 야간 퀴즈 미션 및 무당 신내림 통신 모듈 바인딩 (ui-ghost-renderer.js)
+    if (typeof window.renderGhostUI === 'function') {
+        window.renderGhostUI(cachedGameData, cachedPlayers || {});
+    }
 };
 
+// [auth.js 연동] 로그인 완료 시 레이턴시 없이 즉각 통합 렌더러를 강제 수행시키는 브릿지 함수
+window.triggerGameViewTransition = function() {
+    window.rerenderAllUI();
+};
+
+// 교사 전용 계정 관리 독립 센터 스위칭 라우터
+window.toggleAdminAccountsView = function() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    
+    isInAdminAccountsView = !isInAdminAccountsView;
+    if (isInAdminAccountsView) {
+        document.getElementById('auth-view').style.display = 'none';
+        document.getElementById('waiting-view').style.display = 'none';
+        document.getElementById('game-view').style.display = 'none';
+        document.getElementById('game-over-view').style.display = 'none';
+        document.getElementById('admin-accounts-view').style.display = 'block';
+    } else {
+        window.exitAdminAccountsView();
+    }
+    window.rerenderAllUI();
+};
+
+window.exitAdminAccountsView = function() {
+    isInAdminAccountsView = false;
+    document.getElementById('admin-accounts-view').style.display = 'none';
+    window.rerenderAllUI();
+    // 복귀 시 완벽한 싱크 동기화를 위해 강제 킥백 신호 송출
+    getDb().ref('game/quiz_score').transaction(c => c || 0);
+};
+
+// 대기실 실시간 학생 입장 닉네임 카드 및 원격 추방 제어 렌더러
 function renderWaitingPlayerGrid(users) {
     const container = document.getElementById('waiting-player-grid');
     if (!container) return;
@@ -140,6 +145,8 @@ function renderWaitingPlayerGrid(users) {
     }
 
     entries.forEach(([uid, u]) => {
+        if (uid === 'admin_master') return; // 교사 본인 카드는 생성 제외
+        
         let kickBtn = (currentUser && currentUser.isAdmin) 
             ? `<button class="btn-danger" style="width:auto; margin:5px 0 0 0; padding:2px 8px; font-size:11px; font-weight:bold; border-radius:4px;" onclick="window.serverKickUser('${uid}')">추방</button>` 
             : '';
@@ -153,6 +160,7 @@ function renderWaitingPlayerGrid(users) {
     });
 }
 
+// 가입 학생 원격 제어용 어카운트 테이블 사출기
 function renderAdminAccountManager(accounts, containerId) {
     const tbody = document.getElementById(containerId);
     if (!tbody) return;
@@ -178,6 +186,7 @@ function renderAdminAccountManager(accounts, containerId) {
     });
 }
 
+// 인게임 전반 보드 정산 오케스트레이터
 function renderInGameBoard(gameData, players) {
     const turn = gameData.turn || 1;
     const status = gameData.status || 'day_discuss';
@@ -221,6 +230,7 @@ function renderInGameBoard(gameData, players) {
     renderTeacherControlTower(gameData, players);
 }
 
+// 28인 유동 배치 인게임 생존 격자판 사출 엔진
 function renderPlayerGridContainer(gameData, players) {
     const gridContainer = document.getElementById('player-grid');
     if (!gridContainer) return;
