@@ -155,12 +155,11 @@
     <script src="ui-render.js" defer></script>
     <script src="ui-ghost-renderer.js" defer></script>
 
-    <script>
+ <script>
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 if (typeof window.triggerGameViewTransition === 'function') {
                     const originalViewTransition = window.triggerGameViewTransition;
-                    // 메인 화면 전환 파이프라인을 가로채 교사용 설정창 가시성을 동적 제어합니다.
                     window.triggerGameViewTransition = function() {
                         if (typeof originalViewTransition === 'function') originalViewTransition();
                         

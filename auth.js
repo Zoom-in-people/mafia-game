@@ -1,6 +1,6 @@
 /**
  * 2. auth.js
- * 유저 인증, 중복 로그인 방지 가드 및 자진 퇴장 시 AI 대타 스위칭 총괄 (오류 교정 완결판)
+ * 유저 인증 및 중복 로그인 방지, 퇴장/튕김 후 재로그인 시 세션 연동 총괄 (자동로그인 전면 폐지 버전)
  */
 
 // 대기실 진입 및 로그인 처리 코어
@@ -18,7 +18,6 @@ function enterWaitingRoom() {
         if (password === '1234') { 
             currentUser = { id: 'admin_master', nick: '교사(관전)', isAdmin: true };
             currentStatus = 'waiting';
-            saveSessionToLocal(currentUser);
             triggerGameViewTransition();
             return;
         } else {
@@ -26,7 +25,7 @@ function enterWaitingRoom() {
         }
     }
 
-    // 2. [교정] 진행 중인 게임 명단(game/players)과 대기실 명단(rooms/users)을 모두 조회하여 세션 복구 및 난입을 제어합니다.
+    // 2. 일반 학생 진영 중복 검증 및 재로그인 복구 체인
     getDb().ref().get().then((rootSnap) => {
         const rootData = rootSnap.val() || {};
         const users = rootData.rooms?.users || {};
@@ -36,7 +35,7 @@ function enterWaitingRoom() {
         let existingUid = null;
         let isAnActivePlayer = false;
 
-        // 진행 중인 게임 명단에서 먼저 닉네임 검색 (나가기 눌렀던 유저 세션 복구 타겟팅)
+        // 진행 중인 게임 명단에서 먼저 닉네임 검색 (튕겨서 첫 화면에서 다시 로그인하려는 학생 유저 타겟팅)
         if (gameStatus !== 'waiting') {
             for (let uid in gamePlayers) {
                 if (gamePlayers[uid].nickname === nick) {
@@ -58,17 +57,16 @@ function enterWaitingRoom() {
         }
 
         if (existingUid) {
-            // [버그 2 해결] 나갔던 유저가 동일 닉네임 재접속 시 정확하게 대타 해제 후 인게임 싱크 복귀
+            // [교정] 튕긴 아이가 첫 화면에서 기존 본인 닉네임을 치고 '다시 로그인' 했을 때 게임 정보를 복구하여 난입시키는 로직
             if (gameStatus !== 'waiting' && isAnActivePlayer) {
                 currentUser = { id: existingUid, nick: nick, isAdmin: false };
-                saveSessionToLocal(currentUser);
                 
                 const restoreUpdates = {};
                 restoreUpdates[`game/players/${existingUid}/isAiControlled`] = false;
                 restoreUpdates[`rooms/users/${existingUid}`] = { nickname: nick, joinedAt: firebase.database.ServerValue.TIMESTAMP };
                 
                 getDb().ref().update(restoreUpdates).then(() => {
-                    console.log(`${nick} 학생 인게임 복귀 및 AI 대타 제어권 회수 완료.`);
+                    console.log(`${nick} 학생 재로그인을 통한 인게임 복귀 완료.`);
                     triggerGameViewTransition();
                 });
             } else {
@@ -83,7 +81,6 @@ function enterWaitingRoom() {
 
             const newUid = 'stu_' + Math.random().toString(36).substr(2, 9);
             currentUser = { id: newUid, nick: nick, isAdmin: false };
-            saveSessionToLocal(currentUser);
 
             getDb().ref(`rooms/users/${newUid}`).set({
                 nickname: nick,
@@ -95,7 +92,7 @@ function enterWaitingRoom() {
     }).catch(err => alert('접속 처리 오류: ' + err.message));
 }
 
-// 자진 퇴장 버튼 클릭 시 중복 분열 원천 차단 핸들러
+// 자진 퇴장 버튼 클릭 핸들러
 function handleExit() {
     if (!currentUser) return;
     const confirmExit = confirm("정말 이 방에서 나가시겠습니까? (나간 동안은 AI가 대신 진행합니다.)");
@@ -120,71 +117,9 @@ function handleExit() {
     }
 }
 
-function saveSessionToLocal(userObj) {
-    try {
-        localStorage.setItem('mafia_user_session', JSON.stringify(userObj));
-    } catch (e) {
-        console.error("로컬 스토리지 저장 실패:", e);
-    }
-}
-
-// [★버그 1 해결] 자동 로그인 체크 시 대기실 단계와 인게임 단계를 분기하여 새로고침 튕김 현상 전면 박멸
-function checkAutoLogin() {
-    const saved = localStorage.getItem('mafia_user_session');
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            if (parsed && parsed.id) {
-                currentUser = parsed;
-                
-                if (currentUser.isAdmin) {
-                    triggerGameViewTransition();
-                    return;
-                }
-
-                // 현재 게임 세션 상태(status)를 선제적으로 긁어와 대조합니다.
-                getDb().ref('game/status').get().then((statusSnap) => {
-                    const gameStatus = statusSnap.val() || 'waiting';
-
-                    if (gameStatus === 'waiting') {
-                        // 1. 게임 시작 전 대기실 상태라면 rooms/users에 내가 여전히 유효한지 검증
-                        getDb().ref(`rooms/users/${currentUser.id}`).get().then((userSnap) => {
-                            if (userSnap.exists()) {
-                                triggerGameViewTransition();
-                            } else {
-                                clearSession();
-                            }
-                        });
-                    } else {
-                        // 2. 게임이 진행 중이라면 game/players에서 내 카드를 복원하고 대타 해제
-                        getDb().ref(`game/players/${currentUser.id}`).get().then((snap) => {
-                            if (snap.exists()) {
-                                getDb().ref(`game/players/${currentUser.id}`).update({
-                                    isAiControlled: false
-                                }).then(() => {
-                                    triggerGameViewTransition();
-                                });
-                            } else {
-                                clearSession();
-                            }
-                        });
-                    }
-                }).catch(() => clearSession());
-            }
-        } catch (e) {
-            clearSession();
-        }
-    }
-}
-
+// 세션 파기 및 첫 화면(로그인) 리셋
 function clearSession() {
-    localStorage.removeItem('mafia_user_session');
     currentUser = null;
+    // 브라우저 기억 장치(localStorage)를 쓰지 않으므로, 새로고침 시 무조건 첫 로그인 화면이 깨끗하게 뜨게 됩니다.
     location.reload(); 
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof checkAutoLogin === 'function') {
-        checkAutoLogin();
-    }
-});
