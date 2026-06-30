@@ -1,26 +1,36 @@
 /**
  * 2. auth.js
- * 유저 인증(로그인/회원가입), 중복 로그인 방지, 퇴장/튕김 후 재접속 세션 복구 총괄 (설명 가이드 완결판)
+ * 유저 인증(로그인/회원가입), 중복 로그인 방지, 퇴장/튕김 후 재접속 세션 복구 총괄 (유령 덮어쓰기 완료 버전)
  */
 
-// [★기능 교정 완결] 임의 안내 문구를 철폐하고 시스템 백엔드와 100% 일치하는 정식 규칙 일람표를 전역 사출합니다.
+// [★교정 완결] 중앙 커스텀 정렬 모달 윈도우 사출 시스템 연동
 window.showRoleDescriptions = function() {
-    const guideText = `🕵️‍♂️ [교실 마피아 인게임 직업 가이드] 🕵️‍♂️\n\n` +
-        `🔴 마피아 진영\n` +
+    const modal = document.getElementById('role-modal');
+    const body = document.getElementById('role-modal-body');
+    if (!modal || !body) return;
+
+    const guideText = `🔴 마피아 진영\n` +
         `- 마피아: 밤마다 저격 대상을 지목하여 처단합니다.\n` +
         `- 스파이: 밤에 지목한 유저의 정체를 조사하며, 마피아를 조사하면 비밀 무전 채널이 성공적으로 연결됩니다.\n\n` +
         `⚪ 시민 과학 탐정단 진영\n` +
         `- 선량한 시민: 특별한 고유 능력은 없으나 투표를 통해 마피아를 검거합니다.\n` +
         `- 명의사: 밤마다 마피아의 공격으로부터 생존자 1명을 지정하여 수호(치료)합니다.\n` +
-        `- 열혈경찰: 밤마다 지목한 유저가 마피아 진영(레드)인지 시민 진영(화이트)인지 판별합니다.\n` +
+        `- 열혈경찰: 밤마다 지목한 유저가 마피아 진영인지 시민 진영인지 판별합니다.\n` +
         `- 사립탐정: 밤마다 지목한 대상 학생이 누구에게 고유 능력을 발동했는지 그 동선을 역추적합니다.\n` +
         `- 신내림 무당: 밤에 기도를 올릴 대상을 지목하면, 다음 날 낮에 사망한 유령들이 해당 대상의 진짜 진영을 감별 투표해 줍니다.\n` +
-        `- 강철군인: 마피아의 공격을 최초 1회 완전히 무력화(방어)할 수 있는 면역 목숨(총 2라이프)을 가집니다.\n` +
+        `- 강철군인: 마피아의 공격을 최초 1회 완전히 무력화할 수 있는 면역 목숨(총 2라이프)을 가집니다.\n` +
         `- 국회의원: 낮 투표 처형대에 소환되어 처형 판결을 받아도 면책특권이 자동 발동하여 1회 즉시 무죄 부활합니다.\n` +
         `- 테러리스트: 낮에 억울하게 투표 처형당하거나 밤에 마피아에게 저격당할 때, 자신을 해한 대상 풀 중 1명을 무작위로 추첨해 길동무 자폭 처단합니다.\n` +
         `- 뒷골목 건달: 밤에 지목한 대상을 협박 폭행하여 다음 날 낮 투표 시간 동안 투표권을 완전히 박탈합니다.\n` +
         `- 사랑꾼 연인: 항상 2명이 고정 배정되며, 연인 중 한 명이 마피아에게 저격을 받으면 다른 연인이 대신 몸을 던져 대리 사망 희생을 합니다.`;
-    alert(guideText);
+        
+    body.innerText = guideText;
+    modal.style.display = 'flex';
+};
+
+window.closeRoleModal = function() {
+    const modal = document.getElementById('role-modal');
+    if (modal) modal.style.display = 'none';
 };
 
 function switchAuthTab(type) {
@@ -146,7 +156,17 @@ function handleLogin() {
                     triggerGameViewTransition();
                 });
             } else {
-                alert('해당 계정은 이미 대기실에 로그인 상태로 접속 중입니다. 중복 진입은 거부됩니다.');
+                // [★버그 완벽 해결] 대기방 유령 차단 예외 분기 타격 교정
+                // 대기실 상태에서 중복 로그인이 걸리면, 튕긴 아이의 유령 세션을 무시하고 신규 세션 타임스탬프로 강제 덮어쓰기 진입시킵니다.
+                currentUser = { id: existingUid, nick: nick, isAdmin: false };
+                
+                getDb().ref(`rooms/users/${existingUid}`).set({
+                    nickname: nick,
+                    joinedAt: firebase.database.ServerValue.TIMESTAMP
+                }).then(() => {
+                    console.log(`${nick} 학생 대기실 유령 로그인 해제 후 오버라이트 안착 완료.`);
+                    triggerGameViewTransition();
+                });
             }
         } else {
             if (gameStatus !== 'waiting') {

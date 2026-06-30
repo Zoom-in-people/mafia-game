@@ -1,30 +1,25 @@
 /**
  * 4-1. phase-admin-core.js
- * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정/대기실 추방 오퍼레이터
+ * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정/대기실 추방 오퍼레이터 (비동기 엇박자 전면 매핑본)
  */
 
-// [★기능 신설] 대기실에 들어와서 교사를 열받게 하거나 장난치는 학생을 즉시 탈방 처단하는 원격 추방 엔진
+// [★교정 완결] 무의미한 조회를 생략하고 파이어베이스에서 직통으로 대기방 유저 노드를 들어내는 강력한 킥백 코어
 window.serverKickUser = function(uid) {
     if (!currentUser || !currentUser.isAdmin) return;
     
-    getDb().ref(`rooms/users/${uid}`).get().then(snap => {
-        if (!snap.exists()) return;
-        const targetNick = snap.val().nickname;
-        
-        if (confirm(`⚠️ 대기실에 접속 중인 [ ${targetNick} ] 학생을 정말로 강제 추방하시겠습니까?\n추방된 학생은 대기방 레이어에서 퇴출됩니다.`)) {
-            getDb().ref(`rooms/users/${uid}`).remove().then(() => {
-                alert(`[${targetNick}] 학생을 실시간 대기실에서 완벽하게 추방 조치했습니다.`);
-            });
-        }
-    }).catch(err => alert('추방 연산 실패: ' + err.message));
+    if (confirm("⚠️ 선택한 학생을 실시간 대기실에서 즉시 원격 추방 조치하시겠습니까?")) {
+        getDb().ref(`rooms/users/${uid}`).remove().then(() => {
+            alert("선택한 유저를 대기실 방 명단에서 무결하게 추방했습니다.");
+        }).catch(err => alert("추방 실패 원인: " + err.message));
+    }
 };
 
 window.handleDeleteAccount = function(nick) {
     if (!currentUser || !currentUser.isAdmin) return;
     
-    if (confirm(`⚠️ 정말로 [ ${nick} ] 학생의 계정을 데이터베이스에서 완전히 영구 삭제하시겠습니까?\n삭제 즉시 해당 학생은 로그아웃됩니다.`)) {
+    if (confirm(`⚠️ 정말로 [ ${nick} ] 학생의 계정을 데이터베이스에서 완전히 영구 삭제하시겠습니까?`)) {
         getDb().ref(`accounts/${nick}`).remove().then(() => {
-            alert(`[${nick}] 학생 계정이 무결하게 파기되었습니다.`);
+            alert(`[${nick}] 학생의 영구 회원가입 원본 데이터가 파기되었습니다.`);
         }).catch(err => alert('삭제 실패: ' + err.message));
     }
 };
@@ -32,14 +27,14 @@ window.handleDeleteAccount = function(nick) {
 window.handleModifyAccount = function(nick) {
     if (!currentUser || !currentUser.isAdmin) return;
     
-    const newPw = prompt(`📝 [ ${nick} ] 학생의 변경할 새로운 비밀번호를 입력해 주세요:`);
+    const newPw = prompt(`📝 [ ${nick} ] 학생에게 부여할 새로운 비밀번호를 입력해 주세요:`);
     if (newPw === null) return; 
     
     const trimmedPw = newPw.trim();
-    if (!trimmedPw) return alert('공백 또는 빈 문자열로는 비밀번호를 변경할 수 없습니다.');
+    if (!trimmedPw) return alert('공백 문자로만 이루어진 패스워드는 주입할 수 없습니다.');
 
     getDb().ref(`accounts/${nick}/password`).set(trimmedPw).then(() => {
-        alert(`[${nick}] 학생의 비밀번호가 성공적으로 변경되었습니다.`);
+        alert(`[${nick}] 학생의 비밀번호 원격 갱신이 완료되었습니다.`);
     }).catch(err => alert('수정 실패: ' + err.message));
 };
 
@@ -68,7 +63,7 @@ function handleStartGame() {
         });
 
         if (rolePool.length > total) {
-            alert(`[알림] 特수직업 정원이 많아 접속 인원에 맞춰 분배됩니다.`);
+            alert(`[알림] 특수직업 정원이 많아 접속 인원에 맞춰 분배됩니다.`);
             rolePool = rolePool.slice(0, total);
         }
 

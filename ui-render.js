@@ -1,12 +1,10 @@
 /**
  * 5-1. ui-render.js
- * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (추방 및 화면 전환 완전체)
+ * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (라우팅 최적화 버전)
  */
 
 let cachedGameData = null;
 let cachedPlayers = null;
-
-// [★핵심 변수] 회원수정 화면으로 넘어갔을 때 파이어베이스 수신 패킷이 화면을 대기실로 강제 되돌리는 현상을 막는 잠금장치
 let isInAdminAccountsView = false;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,13 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cachedGameData = gameData;
             cachedPlayers = players;
 
-            // 1. [★기능 신설] 교사 마스터 로그인 상태일 때만 상단 내비게이션 버튼 노출
-            const navBtn = document.getElementById('admin-nav-accounts-btn');
-            if (navBtn) {
-                navBtn.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
-            }
-
-            // 2. 회원수정 전용 화면이 열려 있다면 인게임 렌더링 파이프라인을 잠시 잠금하고 계정 테이블만 실시간 드로잉
+            // 독립 계정 관리 창 개방 시, 동기화 패킷이 뷰를 튕겨내지 않게 가드하고 실시간 테이블만 전면 렌더링 유지
             if (isInAdminAccountsView) {
                 if (currentUser && currentUser.isAdmin) {
                     renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
@@ -41,30 +33,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // 3. 세션 상태에 따른 레이어 화면 전환 제어
+            // 세션 상태에 따른 레이어 화면 전환 제어
             updateViewVisibility(status);
 
-            // 4. 대기실 상태일 때 실시간 접속자 명단 닉네임 카드 사출
+            // 대기실 상태일 때 실시간 접속자 명단 사출
             if (status === 'waiting') {
                 renderWaitingPlayerGrid(users);
             }
 
-            // 5. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
+            // 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
             if (status !== 'waiting' && status !== 'game_over') {
                 renderInGameBoard(gameData, players);
             }
 
-            // 6. 최종 게임 오버 종료 선언 시 정산 카드 연동
+            // 최종 게임 오버 종료 선언 시 정산 카드 연동
             if (status === 'game_over') {
                 renderGameOverBoard(gameData, players);
             }
 
-            // 7. 관리자 교사 계정일 때 독립화면용 계정 관리 테이블 사전 빌드
+            // 교사용 계정 관리 테이블 사전 빌드 동기화
             if (currentUser && currentUser.isAdmin) {
                 renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
             }
 
-            // 8. 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링
             if (typeof window.renderGhostUI === 'function') {
                 window.renderGhostUI(gameData, players);
             }
@@ -72,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 600);
 });
 
-// [★기능 신설] 회원가입 수정 패널로 화면 강제 라우팅 스위칭 처리기
 window.toggleAdminAccountsView = function() {
     if (!currentUser || !currentUser.isAdmin) return;
     
@@ -83,7 +73,6 @@ window.toggleAdminAccountsView = function() {
         document.getElementById('game-view').style.display = 'none';
         document.getElementById('game-over-view').style.display = 'none';
         document.getElementById('admin-accounts-view').style.display = 'block';
-        document.getElementById('admin-nav-accounts-btn').innerText = "🔙 회원가입 수정 패널 닫기";
     } else {
         window.exitAdminAccountsView();
     }
@@ -92,16 +81,15 @@ window.toggleAdminAccountsView = function() {
 window.exitAdminAccountsView = function() {
     isInAdminAccountsView = false;
     document.getElementById('admin-accounts-view').style.display = 'none';
-    document.getElementById('admin-nav-accounts-btn').innerText = "👤 회원가입 수정 패널 전환";
     updateViewVisibility(currentStatus);
-    getDb().ref('game/status').get().then(snap => {
-        // 복귀 시 대기실 접속자 카드를 즉시 강제 렌더링 유도하기 위해 더미 조회 작동
-        getDb().ref('game/quiz_score').transaction(c => c || 0);
-    });
+    // 무부하 로컬 드로잉 강제 킥백 리로드
+    if (cachedGameData && cachedPlayers) {
+        renderInGameBoard(cachedGameData, cachedPlayers);
+    }
 };
 
 function updateViewVisibility(status) {
-    if (isInAdminAccountsView) return; // 독립화면 가동 중에는 노드 플래그 변화 무시
+    if (isInAdminAccountsView) return; 
     
     const authView = document.getElementById('auth-view');
     const waitingView = document.getElementById('waiting-view');
@@ -126,7 +114,6 @@ window.triggerGameViewTransition = function() {
     if (typeof currentStatus !== 'undefined') updateViewVisibility(currentStatus);
 };
 
-// [★기능 교정] 대기실 유저 명단 드로잉 및 교사 접속 시 강제 추방(Kick) 버튼 결합 로직
 function renderWaitingPlayerGrid(users) {
     const container = document.getElementById('waiting-player-grid');
     if (!container) return;
@@ -139,7 +126,6 @@ function renderWaitingPlayerGrid(users) {
     }
 
     entries.forEach(([uid, u]) => {
-        // 교사용 화면일 때만 추방 버튼을 사출하여 결합합니다.
         let kickBtn = (currentUser && currentUser.isAdmin) 
             ? `<button class="btn-danger" style="width:auto; margin:5px 0 0 0; padding:2px 8px; font-size:11px; font-weight:bold; border-radius:4px;" onclick="window.serverKickUser('${uid}')">추방</button>` 
             : '';
@@ -483,13 +469,4 @@ function renderGameOverBoard(gameData, players) {
     if (adminReset) {
         adminReset.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
     }
-}
-
-function getRoleKoreanName(role) {
-    const dict = {
-        mafia: "마피아", citizen: "선량한 시민", spy: "스파이", detective: "사립탐정",
-        mudang: "신내림 무당", police: "열혈경찰", doctor: "명의사", soldier: "강철군인",
-        assemblyman: "국회의원", terrorist: "테러리스트", gangster: "뒷골목 건달", lovers: "사랑꾼 연인"
-    };
-    return dict[role] || "시민 요원";
 }
