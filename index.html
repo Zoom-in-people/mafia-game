@@ -3,16 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>교실 마피아 과학 레이스 코어</title>
+    <title>교실 마피아 게임</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div id="auth-view" class="view-container" style="display: block;">
-        <h2>🕵️‍♂️ 교실 마피아: 과학 탐정단</h2>
-        <p style="text-align: center; color: #666; font-size: 13px;">튕김 방지용 본인 닉네임을 정확히 기입해 주세요.</p>
-        <input type="text" id="user-nickname" placeholder="닉네임 입력 (최대 8자)" maxlength="8">
-        <button onclick="enterWaitingRoom()">게임방 접속하기</button>
+        <div class="auth-tabs">
+            <button id="tab-login-btn" class="active" onclick="switchAuthTab('login')">로그인</button>
+            <button id="tab-register-btn" onclick="switchAuthTab('register')">회원가입</button>
+        </div>
+        
+        <div id="login-form">
+            <h2>로그인</h2>
+            <input type="text" id="login-nickname" placeholder="닉네임 입력 (최대 8자)" maxlength="8">
+            <input type="password" id="login-password" placeholder="비밀번호 입력">
+            <button onclick="handleLogin()">입장하기</button>
+        </div>
+        
+        <div id="register-form" style="display: none;">
+            <h2>회원가입</h2>
+            <input type="text" id="register-nickname" placeholder="새로운 닉네임 입력 (최대 8자)" maxlength="8">
+            <input type="password" id="register-password" placeholder="사용할 비밀번호 입력">
+            <button onclick="handleRegister()">가입 완료하기</button>
+        </div>
     </div>
 
 
@@ -57,7 +71,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h3 id="round-title" style="margin: 0; color:#e65100;">제 1회차 - 낮 ☀️</h3>
             <div style="display: flex; gap: 5px;">
-                <button class="btn-secondary" onclick="alert('교과서 기반 과학 마피아 직업 규칙 가이드북은 교사 화면 및 배부 자료를 참고해 주세요!')" style="padding: 5px 10px; font-size: 12px; margin:0; width:auto;">직업 설명 보기</button>
+                <button class="btn-secondary" onclick="alert('교사 화면 및 배부 자료를 참고해 주세요!')" style="padding: 5px 10px; font-size: 12px; margin:0; width:auto;">직업 설명 보기</button>
                 <button class="btn-danger" onclick="handleExit()" style="padding: 5px 10px; font-size: 12px; margin:0; width:auto; font-weight:bold;">나가기</button>
             </div>
         </div>
@@ -141,7 +155,6 @@
         </div>
     </div>
 
-
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js" defer></script>
@@ -155,7 +168,7 @@
     <script src="ui-render.js" defer></script>
     <script src="ui-ghost-renderer.js" defer></script>
 
- <script>
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 if (typeof window.triggerGameViewTransition === 'function') {

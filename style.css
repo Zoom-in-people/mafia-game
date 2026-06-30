@@ -28,6 +28,32 @@ h1, h2, h3, h4 {
     margin-top: 0;
 }
 
+/* [1-1] 로그인/회원가입 가변 탭 인터페이스 스타일 */
+.auth-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #ddd;
+}
+
+.auth-tabs button {
+    flex: 1;
+    background: none;
+    color: #333;
+    border: none;
+    padding: 12px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 0;
+    margin: 0;
+    transition: all 0.2s ease;
+}
+
+.auth-tabs button.active {
+    font-weight: bold;
+    color: #4CAF50;
+    border-bottom: 3px solid #4CAF50;
+}
+
 /* [2] 상단 진행 상황판 및 아침 알림 전광판 */
 .alert-box {
     background-color: #e3f2fd;
@@ -40,7 +66,6 @@ h1, h2, h3, h4 {
     white-space: pre-line;
 }
 
-/* 야간 전환 시 분위기를 가라앉히는 밤 전용 알림 스타일 */
 .alert-box.night {
     background-color: #1a237e;
     border-left: 5px solid #ffeb3b;
@@ -55,7 +80,6 @@ h1, h2, h3, h4 {
     margin: 15px 0;
 }
 
-/* 학생 개별 상태 연동형 카드 인터페이스 */
 .grid-card {
     background: #fff;
     border: 2px solid #ddd;
@@ -78,14 +102,12 @@ h1, h2, h3, h4 {
     transform: scale(0.95);
 }
 
-/* 내 선택지가 명확하게 반전 적용되는 불빛 이펙트 (유령 투표 등 연동) */
 .grid-card.my-selected {
     border-width: 4px;
     transform: scale(1.02);
     z-index: 2;
 }
 
-/* 사망하여 탈락한 사망자 유령 카드 가림막 */
 .grid-card.dead {
     background-color: #eaeaea;
     color: #888;
@@ -107,7 +129,7 @@ h1, h2, h3, h4 {
 }
 
 .badge.blue { background: #1e88e5; }
-.badge.green { background: #4caf50; } /* 들여쓰기 규격 칼정렬 완료 */
+.badge.green { background: #4caf50; }
 
 /* [5] 입력 폼 및 직관적 버튼 컴포넌트 */
 input, select {
@@ -137,7 +159,6 @@ button:hover {
     opacity: 0.9;
 }
 
-/* 성격별 범용 컬러 분기 */
 .btn-danger { background-color: #d32f2f; }
 .btn-secondary { background-color: #7b1fa2; }
 .btn-info { background-color: #0288d1; }
