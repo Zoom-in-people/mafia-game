@@ -11,6 +11,34 @@ let cachedAccounts = null;
 
 let isInAdminAccountsView = false;
 
+/**
+ * 영문 역할 이름을 한국어 이름으로 변환하는 함수
+ * @param {string} role - 영문 역할명 (예: 'mafia', 'doctor')
+ * @returns {string} - 변환된 한국어 역할명
+ */
+function getRoleKoreanName(role) {
+    if (!role) return '알 수 없음';
+    
+    // 대소문자나 공백으로 인한 오류를 방지하기 위해 정제
+    const cleanRole = role.toLowerCase().trim();
+    
+    // 게임에서 사용하는 역할 목록에 맞추어 수정 가능합니다.
+    const roleMap = {
+        'mafia': '마피아',
+        'citizen': '시민',
+        'civilian': '시민',
+        'doctor': '의사',
+        'cop': '경찰',
+        'detective': '경찰',
+        'reporter': '기자',
+        'politician': '정치인',
+        'soldier': '군인'
+    };
+    
+    // 매핑된 한국어 이름이 없으면 원래 들어온 값을 그대로 반환
+    return roleMap[cleanRole] || role;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const db = getDb();
