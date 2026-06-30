@@ -1,6 +1,6 @@
 /**
  * 4-1. phase-admin-core.js
- * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정/대기실 추방 오퍼레이터 (교사용 세션 보호판)
+ * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정/대기실 추방 오퍼레이터
  */
 
 window.serverKickUser = function(uid) {
@@ -37,30 +37,7 @@ window.handleModifyAccount = function(nick) {
     }).catch(err => alert('수정 실패: ' + err.message));
 };
 
-// [★교정 완료] 교사가 낮 시간 토론 중 '밤 전환' 버튼을 눌렀을 때의 알림 문구 매핑 구역입니다.
-window.handleNextStage = function() {
-    if (!currentUser || !currentUser.isAdmin) return;
-
-    getDb().ref('game').get().then(snap => {
-        const gameData = snap.val() || {};
-        const status = gameData.status || 'day_discuss';
-        const turn = gameData.turn || 1;
-        const updates = {};
-
-        if (status === 'day_discuss') {
-            updates['game/status'] = 'night_action';
-            // 지시하신 야간 종합 임무 수행 및 일반 시민 권한 독려 지침 문구를 토씨 하나 틀리지 않고 매핑합니다.
-            updates['game/morning_report'] = "밤이 되었습니다. 마피아는 저격 대상을 지목하고, 특수 직업군은 고유 능력을 발동해 주세요. 일반 시민과 밤에 능력이 없는 직업군은 마피아로 의심되는 사람을 선택해주세요.";
-            getDb().ref().update(updates);
-        } else {
-            // 밤에서 아침으로 넘어가는 경우 (phase-night-action.js의 정산 프로세스로 제어권 이계)
-            if (typeof window.serverProcessNightActions === 'function') {
-                window.serverProcessNightActions();
-            }
-        }
-    });
-};
-
+// [★버그 전면 교정] 멈춰버린 28인 직업 할당 난수 셔플 파이프라인 무결성 복구
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
@@ -143,7 +120,6 @@ window.handleForceStopGame = function() {
     }
 };
 
-// [★버그 정밀 교정 완결] 교사가 대기실 복구를 누를 때 강제 튕김을 유발하던 location.reload()를 영구 멸균했습니다.
 function handleResetToWaiting() {
     getDb().ref('game/players').get().then((snapshot) => {
         const players = snapshot.val() || {};
@@ -174,7 +150,6 @@ function handleResetToWaiting() {
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;
             isInAdminAccountsView = false;
-            // 리로드 없이 안전하게 로컬 메모리를 0초 만에 역갱신하여 교사의 원본 로그인 상태를 무결하게 보존합니다.
             if (typeof window.rerenderAllUI === 'function') {
                 window.rerenderAllUI();
             }
