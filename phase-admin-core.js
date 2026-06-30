@@ -1,9 +1,24 @@
 /**
  * 4-1. phase-admin-core.js
- * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정 오퍼레이터
+ * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정/대기실 추방 오퍼레이터
  */
 
-// [★기능 신설] 교사 전용 학생 계정 강제 삭제 엔진
+// [★기능 신설] 대기실에 들어와서 교사를 열받게 하거나 장난치는 학생을 즉시 탈방 처단하는 원격 추방 엔진
+window.serverKickUser = function(uid) {
+    if (!currentUser || !currentUser.isAdmin) return;
+    
+    getDb().ref(`rooms/users/${uid}`).get().then(snap => {
+        if (!snap.exists()) return;
+        const targetNick = snap.val().nickname;
+        
+        if (confirm(`⚠️ 대기실에 접속 중인 [ ${targetNick} ] 학생을 정말로 강제 추방하시겠습니까?\n추방된 학생은 대기방 레이어에서 퇴출됩니다.`)) {
+            getDb().ref(`rooms/users/${uid}`).remove().then(() => {
+                alert(`[${targetNick}] 학생을 실시간 대기실에서 완벽하게 추방 조치했습니다.`);
+            });
+        }
+    }).catch(err => alert('추방 연산 실패: ' + err.message));
+};
+
 window.handleDeleteAccount = function(nick) {
     if (!currentUser || !currentUser.isAdmin) return;
     
@@ -14,12 +29,11 @@ window.handleDeleteAccount = function(nick) {
     }
 };
 
-// [★기능 신설] 교사 전용 학생 계정 패스워드 강제 원격 변경 제어기
 window.handleModifyAccount = function(nick) {
     if (!currentUser || !currentUser.isAdmin) return;
     
     const newPw = prompt(`📝 [ ${nick} ] 학생의 변경할 새로운 비밀번호를 입력해 주세요:`);
-    if (newPw === null) return; // 취소 버튼 처리
+    if (newPw === null) return; 
     
     const trimmedPw = newPw.trim();
     if (!trimmedPw) return alert('공백 또는 빈 문자열로는 비밀번호를 변경할 수 없습니다.');
@@ -29,7 +43,6 @@ window.handleModifyAccount = function(nick) {
     }).catch(err => alert('수정 실패: ' + err.message));
 };
 
-// 교사 게임 시작 버튼 클릭 시 직업 난수 분배 및 게임 세션 개시
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
@@ -55,7 +68,7 @@ function handleStartGame() {
         });
 
         if (rolePool.length > total) {
-            alert(`[알림] 특수직업 정원이 많아 접속 인원에 맞춰 분배됩니다.`);
+            alert(`[알림] 特수직업 정원이 많아 접속 인원에 맞춰 분배됩니다.`);
             rolePool = rolePool.slice(0, total);
         }
 

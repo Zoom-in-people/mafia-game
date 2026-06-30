@@ -1,17 +1,19 @@
 /**
  * 5-1. ui-render.js
- * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (대기실&계정관리 복원 버전)
+ * 파이어베이스 실시간 데이터 수신 리스너, 메인 보드 화면 사출 및 격자 카드 클릭 액션 총괄 (추방 및 화면 전환 완전체)
  */
 
 let cachedGameData = null;
 let cachedPlayers = null;
+
+// [★핵심 변수] 회원수정 화면으로 넘어갔을 때 파이어베이스 수신 패킷이 화면을 대기실로 강제 되돌리는 현상을 막는 잠금장치
+let isInAdminAccountsView = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const db = getDb();
         if (!db) return;
 
-        // [★리스너 전면 고도화] 대기실과 회원명단을 동시 캐치하기 위해 root 전체를 구독 감시합니다.
         db.ref().on('value', (snapshot) => {
             const rootData = snapshot.val() || {};
             const gameData = rootData.game || {};
@@ -25,31 +27,44 @@ document.addEventListener('DOMContentLoaded', () => {
             cachedGameData = gameData;
             cachedPlayers = players;
 
-            // 1. 세션 상태에 따른 레이어 화면 전환 제어
+            // 1. [★기능 신설] 교사 마스터 로그인 상태일 때만 상단 내비게이션 버튼 노출
+            const navBtn = document.getElementById('admin-nav-accounts-btn');
+            if (navBtn) {
+                navBtn.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
+            }
+
+            // 2. 회원수정 전용 화면이 열려 있다면 인게임 렌더링 파이프라인을 잠시 잠금하고 계정 테이블만 실시간 드로잉
+            if (isInAdminAccountsView) {
+                if (currentUser && currentUser.isAdmin) {
+                    renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
+                }
+                return;
+            }
+
+            // 3. 세션 상태에 따른 레이어 화면 전환 제어
             updateViewVisibility(status);
 
-            // 2. [★기능 복원] 대기실 상태일 때 실시간 접속자 명단 닉네임 카드를 렌더링합니다.
+            // 4. 대기실 상태일 때 실시간 접속자 명단 닉네임 카드 사출
             if (status === 'waiting') {
                 renderWaitingPlayerGrid(users);
             }
 
-            // 3. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
+            // 5. 인게임 진행 중일 때 생존자 화면 및 현황판 동적 드로잉
             if (status !== 'waiting' && status !== 'game_over') {
                 renderInGameBoard(gameData, players);
             }
 
-            // 4. 최종 게임 오버 종료 선언 시 정산 카드 연동
+            // 6. 최종 게임 오버 종료 선언 시 정산 카드 연동
             if (status === 'game_over') {
                 renderGameOverBoard(gameData, players);
             }
 
-            // 5. [★기능 신설] 관리자 교사 계정일 때만 원격 가입 계정 대시보드를 드로잉 마킹합니다.
+            // 7. 관리자 교사 계정일 때 독립화면용 계정 관리 테이블 사전 빌드
             if (currentUser && currentUser.isAdmin) {
-                renderAdminAccountManager(accounts, 'admin-accounts-table-body-waiting');
-                renderAdminAccountManager(accounts, 'admin-accounts-table-body-game');
+                renderAdminAccountManager(accounts, 'admin-accounts-table-body-dedicated');
             }
 
-            // 6. 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링
+            // 8. 사망 유령 전용 미션 및 영매 투표소 UI 위임 렌더링
             if (typeof window.renderGhostUI === 'function') {
                 window.renderGhostUI(gameData, players);
             }
@@ -57,8 +72,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 600);
 });
 
-// 전역 뷰 가시성 스위칭 엔진
+// [★기능 신설] 회원가입 수정 패널로 화면 강제 라우팅 스위칭 처리기
+window.toggleAdminAccountsView = function() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    
+    isInAdminAccountsView = !isInAdminAccountsView;
+    if (isInAdminAccountsView) {
+        document.getElementById('auth-view').style.display = 'none';
+        document.getElementById('waiting-view').style.display = 'none';
+        document.getElementById('game-view').style.display = 'none';
+        document.getElementById('game-over-view').style.display = 'none';
+        document.getElementById('admin-accounts-view').style.display = 'block';
+        document.getElementById('admin-nav-accounts-btn').innerText = "🔙 회원가입 수정 패널 닫기";
+    } else {
+        window.exitAdminAccountsView();
+    }
+};
+
+window.exitAdminAccountsView = function() {
+    isInAdminAccountsView = false;
+    document.getElementById('admin-accounts-view').style.display = 'none';
+    document.getElementById('admin-nav-accounts-btn').innerText = "👤 회원가입 수정 패널 전환";
+    updateViewVisibility(currentStatus);
+    getDb().ref('game/status').get().then(snap => {
+        // 복귀 시 대기실 접속자 카드를 즉시 강제 렌더링 유도하기 위해 더미 조회 작동
+        getDb().ref('game/quiz_score').transaction(c => c || 0);
+    });
+};
+
 function updateViewVisibility(status) {
+    if (isInAdminAccountsView) return; // 독립화면 가동 중에는 노드 플래그 변화 무시
+    
     const authView = document.getElementById('auth-view');
     const waitingView = document.getElementById('waiting-view');
     const gameView = document.getElementById('game-view');
@@ -82,28 +126,33 @@ window.triggerGameViewTransition = function() {
     if (typeof currentStatus !== 'undefined') updateViewVisibility(currentStatus);
 };
 
-// [★기능 복원 코어] 대기실 입장 유저들의 실시간 닉네임 격자판 렌더러
+// [★기능 교정] 대기실 유저 명단 드로잉 및 교사 접속 시 강제 추방(Kick) 버튼 결합 로직
 function renderWaitingPlayerGrid(users) {
     const container = document.getElementById('waiting-player-grid');
     if (!container) return;
-    container.innerHTML = ''; // 누적 방지 완전 청소
+    container.innerHTML = ''; 
 
-    const userList = Object.values(users);
-    if (userList.length === 0) {
+    const entries = Object.entries(users);
+    if (entries.length === 0) {
         container.innerHTML = `<div style="text-align:center; color:#999; font-size:13px; width:100%; padding:10px;">현재 대기방에 접속 중인 학생이 없습니다.</div>`;
         return;
     }
 
-    userList.forEach(u => {
+    entries.forEach(([uid, u]) => {
+        // 교사용 화면일 때만 추방 버튼을 사출하여 결합합니다.
+        let kickBtn = (currentUser && currentUser.isAdmin) 
+            ? `<button class="btn-danger" style="width:auto; margin:5px 0 0 0; padding:2px 8px; font-size:11px; font-weight:bold; border-radius:4px;" onclick="window.serverKickUser('${uid}')">추방</button>` 
+            : '';
+
         container.innerHTML += `
-            <div class="grid-card" style="cursor:default;">
-                <span>${u.nickname}</span>
+            <div class="grid-card" style="cursor:default; min-height:65px;">
+                <span style="font-size:14px; color:#333;">${u.nickname}</span>
+                ${kickBtn}
             </div>
         `;
     });
 }
 
-// [★기능 신설 코어] 회원가입된 학생 데이터베이스 목록 및 제어반 사출기
 function renderAdminAccountManager(accounts, containerId) {
     const tbody = document.getElementById(containerId);
     if (!tbody) return;
@@ -111,7 +160,7 @@ function renderAdminAccountManager(accounts, containerId) {
 
     const accountEntries = Object.entries(accounts);
     if (accountEntries.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="color:#999;">데이터베이스에 등록된 가입 정보가 없습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#999; padding:15px;">데이터베이스에 등록된 가입 정보가 없습니다.</td></tr>`;
         return;
     }
 
@@ -119,7 +168,7 @@ function renderAdminAccountManager(accounts, containerId) {
         tbody.innerHTML += `
             <tr>
                 <td><b>${nick}</b></td>
-                <td><code style="font-size:14px; color:#c2185b;">${data.password}</code></td>
+                <td><code style="font-size:14px; color:#c2185b; font-weight:bold;">${data.password}</code></td>
                 <td>
                     <button class="secret-reveal-btn btn-info" style="width:auto; margin:0 2px; padding:4px 8px; font-size:12px; display:inline-block;" onclick="window.handleModifyAccount('${nick}')">수정</button>
                     <button class="secret-reveal-btn btn-danger" style="width:auto; margin:0 2px; padding:4px 8px; font-size:12px; display:inline-block;" onclick="window.handleDeleteAccount('${nick}')">삭제</button>
@@ -129,7 +178,6 @@ function renderAdminAccountManager(accounts, containerId) {
     });
 }
 
-// 인게임 전반 메인보드 드로잉 오케스트레이터
 function renderInGameBoard(gameData, players) {
     const turn = gameData.turn || 1;
     const status = gameData.status || 'day_discuss';
@@ -390,13 +438,6 @@ function renderTeacherControlTower(gameData, players) {
         });
     }
 }
-
-window.toggleAdminRevealSecret = function(uid) {
-    adminRevealMap[uid] = !adminRevealMap[uid];
-    if (cachedGameData && cachedPlayers) {
-        renderTeacherControlTower(cachedGameData, cachedPlayers);
-    }
-};
 
 function renderGameOverBoard(gameData, players) {
     const wTitle = document.getElementById('winner-title');

@@ -1,9 +1,28 @@
 /**
  * 2. auth.js
- * 유저 인증(로그인/회원가입), 중복 로그인 방지, 퇴장/튕김 후 재접속 세션 복구 총괄
+ * 유저 인증(로그인/회원가입), 중복 로그인 방지, 퇴장/튕김 후 재접속 세션 복구 총괄 (설명 가이드 완결판)
  */
 
-// 로그인 / 회원가입 UI 입력 탭 스위칭용 헬퍼
+// [★기능 교정 완결] 임의 안내 문구를 철폐하고 시스템 백엔드와 100% 일치하는 정식 규칙 일람표를 전역 사출합니다.
+window.showRoleDescriptions = function() {
+    const guideText = `🕵️‍♂️ [교실 마피아 인게임 직업 가이드] 🕵️‍♂️\n\n` +
+        `🔴 마피아 진영\n` +
+        `- 마피아: 밤마다 저격 대상을 지목하여 처단합니다.\n` +
+        `- 스파이: 밤에 지목한 유저의 정체를 조사하며, 마피아를 조사하면 비밀 무전 채널이 성공적으로 연결됩니다.\n\n` +
+        `⚪ 시민 과학 탐정단 진영\n` +
+        `- 선량한 시민: 특별한 고유 능력은 없으나 투표를 통해 마피아를 검거합니다.\n` +
+        `- 명의사: 밤마다 마피아의 공격으로부터 생존자 1명을 지정하여 수호(치료)합니다.\n` +
+        `- 열혈경찰: 밤마다 지목한 유저가 마피아 진영(레드)인지 시민 진영(화이트)인지 판별합니다.\n` +
+        `- 사립탐정: 밤마다 지목한 대상 학생이 누구에게 고유 능력을 발동했는지 그 동선을 역추적합니다.\n` +
+        `- 신내림 무당: 밤에 기도를 올릴 대상을 지목하면, 다음 날 낮에 사망한 유령들이 해당 대상의 진짜 진영을 감별 투표해 줍니다.\n` +
+        `- 강철군인: 마피아의 공격을 최초 1회 완전히 무력화(방어)할 수 있는 면역 목숨(총 2라이프)을 가집니다.\n` +
+        `- 국회의원: 낮 투표 처형대에 소환되어 처형 판결을 받아도 면책특권이 자동 발동하여 1회 즉시 무죄 부활합니다.\n` +
+        `- 테러리스트: 낮에 억울하게 투표 처형당하거나 밤에 마피아에게 저격당할 때, 자신을 해한 대상 풀 중 1명을 무작위로 추첨해 길동무 자폭 처단합니다.\n` +
+        `- 뒷골목 건달: 밤에 지목한 대상을 협박 폭행하여 다음 날 낮 투표 시간 동안 투표권을 완전히 박탈합니다.\n` +
+        `- 사랑꾼 연인: 항상 2명이 고정 배정되며, 연인 중 한 명이 마피아에게 저격을 받으면 다른 연인이 대신 몸을 던져 대리 사망 희생을 합니다.`;
+    alert(guideText);
+};
+
 function switchAuthTab(type) {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
@@ -23,7 +42,6 @@ function switchAuthTab(type) {
     }
 }
 
-// 회원가입 데이터베이스 등록 핸들러
 function handleRegister() {
     const nickInput = document.getElementById('register-nickname');
     const pwInput = document.getElementById('register-password');
@@ -57,7 +75,6 @@ function handleRegister() {
     }).catch(err => alert('회원가입 처리 중 데이터베이스 오류: ' + err.message));
 }
 
-// 정식 패스워드 대조식 로그인 및 세션 복구 처리 코어
 function handleLogin() {
     const nickInput = document.getElementById('login-nickname');
     const pwInput = document.getElementById('login-password');
@@ -69,7 +86,6 @@ function handleLogin() {
     if (!nick) return alert('닉네임을 입력해 주세요.');
     if (!pw) return alert('비밀번호를 입력해 주세요.');
 
-    // 1. [교정 완료] 교사 마스터 권한 로그인 비밀번호 teacherpw 지정 매핑
     if (nick === '교사' || nick === 'teacher' || nick === 'admin') {
         if (pw === 'teacherpw') { 
             currentUser = { id: 'admin_master', nick: '교사(관전)', isAdmin: true };
@@ -81,7 +97,6 @@ function handleLogin() {
         }
     }
 
-    // 2. 일반 학생 가입 검증 및 세션 난입/튕김 방지 탐색 디텍터
     getDb().ref().get().then((rootSnap) => {
         const rootData = rootSnap.val() || {};
         const account = rootData.accounts?.[nick];
@@ -111,7 +126,7 @@ function handleLogin() {
 
         if (!existingUid) {
             for (let uid in users) {
-                if (users[uid].nickname === nick) {
+                if (uid !== 'admin_master' && users[uid] && users[uid].nickname === nick) {
                     existingUid = uid;
                     break;
                 }
@@ -151,7 +166,6 @@ function handleLogin() {
     }).catch(err => alert('로그인 처리 중 데이터 통신 오류: ' + err.message));
 }
 
-// 자진 퇴장 버튼 클릭 핸들러
 function handleExit() {
     if (!currentUser) return;
     const confirmExit = confirm("정말 이 방에서 나가시겠습니까? (나간 동안은 AI가 대신 진행합니다.)");

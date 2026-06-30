@@ -8,6 +8,12 @@
 </head>
 <body>
 
+    <!-- [★기능 신설] 교사 마스터 로그인 시 상단에 항시 고정 노출되는 최상위 레이어 내비게이션 버튼 -->
+    <button id="admin-nav-accounts-btn" onclick="window.toggleAdminAccountsView()" style="display: none; background-color: #0288d1; margin: 10px auto; max-width: 600px; width: 100%;">👤 회원가입 수정 패널 전환</button>
+
+    <!-- ========================================== -->
+    <!-- [VIEW 1] 로그인 / 회원가입 인증 화면 (auth-view) -->
+    <!-- ========================================== -->
     <div id="auth-view" class="view-container" style="display: block;">
         <div class="auth-tabs">
             <button id="tab-login-btn" class="active" onclick="switchAuthTab('login')">로그인</button>
@@ -30,9 +36,14 @@
     </div>
 
 
+    <!-- ========================================== -->
+    <!-- [VIEW 2] 대기실 / 교사 직업 분배 패널 (waiting-view) -->
+    <!-- ========================================== -->
     <div id="waiting-view" class="view-container">
         <h2>⏳ 게임 대기실</h2>
         <div class="alert-box">다른 친구들이 모두 접속할 때까지 잠시 대기해 주세요!</div>
+        
+        <button class="btn-secondary" onclick="showRoleDescriptions()" style="margin-bottom: 10px;">📖 직업 설명 보기</button>
         
         <h4 style="text-align: left; margin: 15px 0 5px 0; font-size: 14px; color:#555;">👥 현재 대기실 접속자 현황판</h4>
         <div id="waiting-player-grid" class="grid-container"></div>
@@ -66,25 +77,18 @@
             </div>
             
             <button onclick="handleStartGame()" style="background-color: #7b1fa2; margin-top: 15px;">🚀 마피아 게임 개시 (직업 랜덤 분배)</button>
-            
-            <div style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 12px;">
-                <h4 style="color: #7b1fa2; text-align: left; margin-bottom: 5px;">🗂️ 회원 가입 학생 계정 관리부</h4>
-                <table class="admin-table">
-                    <thead>
-                        <tr><th>닉네임</th><th>가입 비밀번호</th><th>원격 제어 관리</th></tr>
-                    </thead>
-                    <tbody id="admin-accounts-table-body-waiting"></tbody>
-                </table>
-            </div>
         </div>
     </div>
 
 
+    <!-- ========================================== -->
+    <!-- [VIEW 3] 게임 진행 메인보드 (game-view) -->
+    <!-- ========================================== -->
     <div id="game-view" class="view-container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h3 id="round-title" style="margin: 0; color:#e65100;">제 1회차 - 낮 ☀️</h3>
             <div style="display: flex; gap: 5px;">
-                <button class="btn-secondary" onclick="alert('교사 화면 및 배부 자료를 참고해 주세요!')" style="padding: 5px 10px; font-size: 12px; margin:0; width:auto;">직업 설명 보기</button>
+                <button class="btn-secondary" onclick="showRoleDescriptions()" style="padding: 5px 10px; font-size: 12px; margin:0; width:auto;">직업 설명 보기</button>
                 <button class="btn-danger" onclick="handleExit()" style="padding: 5px 10px; font-size: 12px; margin:0; width:auto; font-weight:bold;">나가기</button>
             </div>
         </div>
@@ -149,20 +153,13 @@
                     <tbody id="admin-live-roles-table"></tbody>
                 </table>
             </div>
-
-            <div style="margin-top: 20px; border-top: 3px double #d32f2f; padding-top: 12px;">
-                <h4 style="color: #b71c1c; text-align: left; margin-bottom: 5px;">🗂️ 회원 가입 학생 계정 관리부</h4>
-                <table class="admin-table">
-                    <thead>
-                        <tr><th>닉네임</th><th>가입 비밀번호</th><th>원격 제어 관리</th></tr>
-                    </thead>
-                    <tbody id="admin-accounts-table-body-game"></tbody>
-                </table>
-            </div>
         </div>
     </div>
 
 
+    <!-- ========================================== -->
+    <!-- [VIEW 4] 최종 게임 오버 정산 화면 (game-over-view) -->
+    <!-- ========================================== -->
     <div id="game-over-view" class="view-container">
         <h2 id="winner-title" style="font-size: 26px; margin-bottom: 5px;">🎉 승리 진영 발표 🎉</h2>
         <p id="final-report" style="text-align: center; font-weight: bold; color: #555; white-space: pre-line; margin-bottom: 20px;"></p>
@@ -176,6 +173,21 @@
         <div id="admin-reset-controls" style="display: none; margin-top: 25px; border-top: 2px dashed #ccc; padding-top: 15px;">
             <button onclick="handleResetToWaiting()" style="background-color: #4caf50;">🔄 게임 종료 후 대기실 세션으로 안전 복구</button>
         </div>
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- [★VIEW 5신설] 교사 전용 독립형 회원 가입 데이터 관리 스크린 (admin-accounts-view) -->
+    <!-- ========================================== -->
+    <div id="admin-accounts-view" class="view-container">
+        <h2 style="color: #0288d1;">🗂️ 원격 가입 학생 계정 관리 센터</h2>
+        <button onclick="window.exitAdminAccountsView()" style="background-color: #7b1fa2; margin-bottom: 15px;">🔙 이전 화면(대기실/게임판)으로 복귀</button>
+        <table class="admin-table">
+            <thead>
+                <tr><th>학생 닉네임</th><th>가입 비밀번호</th><th>원격 관리 제어</th></tr>
+            </thead>
+            <tbody id="admin-accounts-table-body-dedicated"></tbody>
+        </table>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
