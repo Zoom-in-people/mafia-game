@@ -3,16 +3,40 @@
  * 교사 권한 기반 게임 시작, 세션 리셋 제어 및 학생 회원 정보 삭제/수정/대기실 추방 오퍼레이터
  */
 
+// ─── 대기실 개별 추방 ───
 window.serverKickUser = function(uid) {
     if (!currentUser || !currentUser.isAdmin) return;
     
     if (confirm("⚠️ 선택한 학생을 실시간 대기실에서 즉시 원격 추방 조치하시겠습니까?")) {
         getDb().ref(`rooms/users/${uid}`).remove().then(() => {
-            alert("선택한 유저를 대기실 방 명단에서 무결하게 추방했습니다.");
+            alert("선택한 유저를 대기실 방 명단에서 추방했습니다.");
         }).catch(err => alert("추방 실패 원인: " + err.message));
     }
 };
 
+// ─── [★신규] 대기실 전체 추방 ───
+window.serverKickAllUsers = function() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    if (!confirm('⚠️ 대기실의 모든 학생을 한꺼번에 추방하시겠습니까?\n(교사 계정은 추방되지 않습니다.)')) return;
+
+    getDb().ref('rooms/users').get().then(snap => {
+        const users = snap.val() || {};
+        const updates = {};
+        Object.keys(users).forEach(uid => {
+            if (uid !== 'admin_master') {
+                updates[`rooms/users/${uid}`] = null;
+            }
+        });
+        if (Object.keys(updates).length === 0) {
+            return alert('현재 대기실에 추방할 학생이 없습니다.');
+        }
+        return getDb().ref().update(updates);
+    }).then(() => {
+        alert('모든 학생을 대기실에서 추방했습니다.');
+    }).catch(err => alert('전체 추방 실패: ' + err.message));
+};
+
+// ─── 계정 삭제 ───
 window.handleDeleteAccount = function(nick) {
     if (!currentUser || !currentUser.isAdmin) return;
     
@@ -23,6 +47,7 @@ window.handleDeleteAccount = function(nick) {
     }
 };
 
+// ─── 계정 비밀번호 수정 ───
 window.handleModifyAccount = function(nick) {
     if (!currentUser || !currentUser.isAdmin) return;
     
@@ -37,9 +62,7 @@ window.handleModifyAccount = function(nick) {
     }).catch(err => alert('수정 실패: ' + err.message));
 };
 
-// [★오류 교정 - 신규 추가] 대기실 "단원 난이도 설정" 드롭다운이 호출하던 changeQuizLevel 함수가
-// 누락되어 있었습니다. 이 때문에 교사가 단원을 변경해도 ReferenceError만 발생하고
-// 실제로는 game/quiz_level 값이 저장되지 않아, 유령 퀴즈가 항상 기본값(2-1)으로만 출제되는 문제가 있었습니다.
+// ─── 퀴즈 단원 난이도 변경 ───
 window.changeQuizLevel = function(level) {
     if (!currentUser || !currentUser.isAdmin) return;
     getDb().ref('game/quiz_level').set(level).catch(err => {
@@ -47,7 +70,7 @@ window.changeQuizLevel = function(level) {
     });
 };
 
-// [★버그 전면 교정] 멈춰버린 28인 직업 할당 난수 셔플 파이프라인 무결성 복구
+// ─── 게임 시작 ───
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
 
@@ -117,6 +140,9 @@ function handleStartGame() {
         updates['game/shaman_ghost_votes'] = "none";
         updates['game/day_vote_retry_count'] = 0;
         updates['game/trial_retry_count'] = 0;
+        // [★신규] 게임 시작 시 이전 밤 채팅 데이터 초기화
+        updates['game/night_chats'] = null;
+        updates['game/night_chat_counts'] = null;
 
         adminRevealMap = {}; 
         
@@ -132,8 +158,6 @@ window.handleForceStopGame = function() {
 };
 
 function handleResetToWaiting() {
-    // [★오류 교정] 이 함수는 다른 모든 교사 전용 함수와 달리 관리자 권한 검사가 빠져 있었습니다.
-    // 화면상 버튼은 교사에게만 노출되지만, 콘솔 등에서 직접 호출되는 것을 막기 위한 방어 코드를 추가합니다.
     if (!currentUser || !currentUser.isAdmin) return;
 
     getDb().ref('game/players').get().then((snapshot) => {
@@ -162,6 +186,9 @@ function handleResetToWaiting() {
         updates['game/shaman_ghost_votes'] = "none";
         updates['game/day_vote_retry_count'] = 0;
         updates['game/trial_retry_count'] = 0;
+        // [★신규] 대기실 복구 시 밤 채팅 초기화
+        updates['game/night_chats'] = null;
+        updates['game/night_chat_counts'] = null;
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;

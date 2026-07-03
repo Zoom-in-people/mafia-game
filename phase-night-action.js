@@ -1,6 +1,6 @@
 /**
  * 4-3. phase-night-action.js
- * 낮 종료 시 유령 투표 취합 전송 및 야간 특수 직업 연산 브리핑 제어기 (AI 동기화 완전체)
+ * 낮 종료 시 유령 투표 취합 전송 및 야간 특수 직업 연산 브리핑 제어기
  */
 
 // 낮 동안 축적된 유령들의 진영 감별 투표 결과를 밤이 시작되는 순간 무당의 일지에 주입 정산
@@ -44,8 +44,10 @@ window.processDayToNightShamanSettlement = function(parentUpdates) {
             }
         }
 
-        // 유령 투표소 초기화
+        // 유령 투표소 및 [★신규] 밤 채팅 초기화 (새 밤이 시작되면 이전 밤 채팅 삭제)
         updates['game/shaman_ghost_votes'] = null;
+        updates['game/night_chats'] = null;
+        updates['game/night_chat_counts'] = null;
         
         // 데이터 업로드 완료 후 안전하게 AI 오토메이션 트리거 가동
         getDb().ref().update(updates).then(() => {
@@ -63,7 +65,7 @@ function handleNextStage() {
         if (snap.val() === 'day_discuss') {
             const initialUpdates = { 
                 'game/status': 'night_action',
-                'game/morning_report': "밤이 되었습니다. 마피아는 저격 대상을 지목하고, 특수 직업군은 고유 능력을 발동해 주세요. 일반 시민과 밤에 능력이 없는 직업군은 마피아로 의심되는 사람을 선택해주세요."
+                'game/morning_report': "밤이 되었습니다. 마피아는 비밀 채팅 후 저격 대상을 지목하고, 특수 직업군은 고유 능력을 발동해 주세요. 일반 시민은 마피아로 의심되는 사람을 선택해주세요."
             };
             window.processDayToNightShamanSettlement(initialUpdates);
         } else {
@@ -97,6 +99,7 @@ function processNightActions() {
 
         updates['game/shaman_target_uid'] = nextShamanTargetUid;
 
+        // ─── 경찰·사립탐정 조사 결과 일지 기록 ───
         for (let id in players) {
             const p = players[id];
             if (!p.isAlive || p.nightTarget === "none" || !players[p.nightTarget]) continue;
@@ -112,24 +115,59 @@ function processNightActions() {
             if (line) updates[`game/players/${id}/personalLog`] = currentLog ? `${currentLog}\n${line}` : line;
         }
 
+        // ─── [★기능 개선] 스파이 조사 결과 처리 ───
+        // 접선 성공(마피아 지목) 시: 스파이는 마피아 전체 명단을 얻고, 마피아는 스파이 정체를 얻습니다.
+        // 접선 실패(비마피아 지목) 시: 스파이만 조사 결과를 확인합니다.
         if (spyTargetUid !== "none" && players[spyTargetUid]) {
             const spyT = players[spyTargetUid];
-            let spyIdentityResult = spyT.role === 'mafia' ? "마피아입니다." : (spyT.role === 'citizen' ? "시민입니다." : "직업이 있습니다.");
-            let spyContactBonusText = "";
-            if (spyT.role === 'mafia') {
-                let actualSpyNick = "스파이";
-                for (let sId in players) { if (players[sId].role === 'spy') { actualSpyNick = players[sId].nickname; break; } }
-                spyContactBonusText = `\n🔥 [접선성공] 스파이는 [${actualSpyNick}]입니다.`;
+            const isContactSuccess = (spyT.role === 'mafia');
+
+            // 스파이의 UID 찾기
+            let spyUid = null;
+            for (let sId in players) {
+                if (players[sId].role === 'spy' && players[sId].isAlive) { spyUid = sId; break; }
             }
-            for (let id in players) {
-                if (players[id].role === 'mafia' || players[id].role === 'spy') {
-                    let mLog = (players[id].personalLog === "none") ? "" : (players[id].personalLog || "");
-                    let spySecureLine = `[${currentTurnVal}일차 밤 스파이제보] [${spyT.nickname}] 학생은 '${spyIdentityResult}'${spyContactBonusText}`;
-                    updates[`game/players/${id}/personalLog`] = mLog ? `${mLog}\n${spySecureLine}` : spySecureLine;
+
+            if (isContactSuccess) {
+                // ── 마피아 전체 명단 수집 ──
+                const mafiaMembers = [];
+                for (let id in players) {
+                    if (players[id].role === 'mafia') mafiaMembers.push(players[id].nickname);
+                }
+                const mafiaRosterText = mafiaMembers.join(' · ');
+
+                // 스파이 일지: 접선 성공 + 마피아 전체 명단 공개
+                if (spyUid && players[spyUid]) {
+                    const spyLog = (players[spyUid].personalLog === "none") ? "" : (players[spyUid].personalLog || "");
+                    const spySuccessLine =
+                        `[${currentTurnVal}일차 밤] 🔥 접선 성공! [${spyT.nickname}]은 마피아입니다.\n` +
+                        `📋 마피아 전체 명단: ${mafiaRosterText}`;
+                    updates[`game/players/${spyUid}/personalLog`] = spyLog ? `${spyLog}\n${spySuccessLine}` : spySuccessLine;
+                }
+
+                // 마피아 일지: 스파이 정체 공개
+                const spyNick = (spyUid && players[spyUid]) ? players[spyUid].nickname : "스파이";
+                for (let id in players) {
+                    if (players[id].role === 'mafia' && players[id].isAlive) {
+                        const mLog = (players[id].personalLog === "none") ? "" : (players[id].personalLog || "");
+                        const mafiaAlertLine =
+                            `[${currentTurnVal}일차 밤] 🔥 접선 성공! ` +
+                            `스파이 [${spyNick}]이 우리 마피아 [${spyT.nickname}]에게 접선했습니다.`;
+                        updates[`game/players/${id}/personalLog`] = mLog ? `${mLog}\n${mafiaAlertLine}` : mafiaAlertLine;
+                    }
+                }
+            } else {
+                // 접선 실패 - 스파이만 결과 확인
+                const targetRoleDesc = spyT.role === 'citizen' ? "일반 시민입니다." : "시민 진영의 직업을 가지고 있습니다.";
+                if (spyUid && players[spyUid]) {
+                    const spyLog = (players[spyUid].personalLog === "none") ? "" : (players[spyUid].personalLog || "");
+                    const spyFailLine = `[${currentTurnVal}일차 밤] 접선 실패. [${spyT.nickname}]은 ${targetRoleDesc}`;
+                    updates[`game/players/${spyUid}/personalLog`] = spyLog ? `${spyLog}\n${spyFailLine}` : spyFailLine;
                 }
             }
         }
 
+        // ─── 마피아 최다 득표 대상 결정 ───
         let maxM = 0; let finalMTarget = "none";
         for (let t in mafiaTargets) { if (mafiaTargets[t] > maxM) { maxM = mafiaTargets[t]; finalMTarget = t; } }
 
@@ -164,7 +202,9 @@ function processNightActions() {
                 }
             }
         } else if (finalMTarget !== "none" && finalMTarget === protectedUid) {
-            reports.push(`🕊️ 의사의 헌신적인 수호 덕분에 밤사이 아무도 다치지 않았습니다.`);
+            // [★기능 수정] 의사가 살린 경우 - 공격받은 학생 이름을 명시합니다.
+            const savedUser = players[finalMTarget];
+            reports.push(`🕊️ 의사의 헌신적인 수호 덕분에 밤사이 [${savedUser ? savedUser.nickname : '누군가'}] 다치지 않았습니다.`);
         } else {
             reports.push(`💤 밤사이에 평화로운 정적만이 흘렀습니다.`);
         }
@@ -188,8 +228,6 @@ function processNightActions() {
         });
         if (deadList.length === 0) historyLogs.push(`제 ${currentTurnVal}회차 밤: 아무도 사망하지 않음`);
 
-        // [★버그 완전 수선] 외부 game-mechanics.js 정산 구역과의 안전 이월 검증 가드 결합
-        // 비동기 참조 스크립트 충돌로 역할 배정이 터지던 치명적인 구문 에러를 완벽하게 방어 조치했습니다.
         let victory = "continue";
         if (typeof window.checkVictoryFaction === 'function') {
             victory = window.checkVictoryFaction(players, updates);

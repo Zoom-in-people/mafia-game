@@ -68,8 +68,11 @@
             </div>
             
             <button onclick="handleStartGame()" style="background-color: #7b1fa2; margin-top: 15px;">🚀 마피아 게임 개시 (직업 랜덤 분배)</button>
+
+            <!-- [신규] 전체 추방 버튼 -->
+            <button onclick="window.serverKickAllUsers()" class="btn-danger" style="margin-top: 8px;">🚨 대기실 학생 전체 추방</button>
             
-            <button class="btn-info" onclick="window.toggleAdminAccountsView()" style="background-color: #0288d1; margin-top: 15px;">👤 회원가입 계정 관리 페이지로 이동</button>
+            <button class="btn-info" onclick="window.toggleAdminAccountsView()" style="background-color: #0288d1; margin-top: 8px;">👤 회원가입 계정 관리 페이지로 이동</button>
         </div>
     </div>
 
@@ -115,6 +118,26 @@
 
         <h4 style="text-align: left; margin: 15px 0 5px 0; font-size: 14px; color:#555;">👥 교실 생존 현황판 (클릭하여 투표/능력 사용)</h4>
         <div id="player-grid" class="grid-container"></div>
+
+        <!-- [신규] 마피아 전용 비밀 채팅방 (밤에만 표시, 마피아+교사만 열람) -->
+        <div id="mafia-chat-section" style="display:none; background:#fff3f3; border:2px solid #d32f2f; border-radius:8px; padding:12px; margin-bottom:12px;">
+            <h4 style="color:#d32f2f; margin:0 0 8px 0; text-align:left; font-size:14px;">🔴 마피아 전용 비밀 채팅방</h4>
+            <div id="mafia-chat-messages" class="chat-box"></div>
+            <div id="mafia-chat-input-row" class="chat-input-row">
+                <input type="text" id="mafia-chat-input" placeholder="마피아 비밀 작전 채팅 (Enter로 전송)..." maxlength="80" style="flex:1; margin:0;" onkeydown="if(event.key==='Enter') window.sendMafiaChat()">
+                <button onclick="window.sendMafiaChat()" style="width:auto; margin:0; padding:10px 14px; background:#d32f2f;">전송</button>
+            </div>
+        </div>
+
+        <!-- [신규] 익명 채팅방 (밤에만 표시, 전원 참여, 5회 제한) -->
+        <div id="anon-chat-section" style="display:none; background:#f3f3ff; border:2px solid #5c6bc0; border-radius:8px; padding:12px; margin-bottom:12px;">
+            <h4 style="color:#5c6bc0; margin:0 0 8px 0; text-align:left; font-size:14px;">💬 익명 채팅방 &nbsp;<span id="anon-chat-remaining" style="font-size:12px; font-weight:normal; color:#777;"></span></h4>
+            <div id="anon-chat-messages" class="chat-box"></div>
+            <div id="anon-chat-input-row" class="chat-input-row">
+                <input type="text" id="anon-chat-input" placeholder="익명 채팅 입력 (Enter로 전송)..." maxlength="80" style="flex:1; margin:0;" onkeydown="if(event.key==='Enter') window.sendAnonChat()">
+                <button id="anon-chat-send-btn" onclick="window.sendAnonChat()" style="width:auto; margin:0; padding:10px 14px; background:#5c6bc0;">전송</button>
+            </div>
+        </div>
 
         <div id="my-personal-log-box" style="display: none;">
             <h4 style="text-align: left; margin: 10px 0 5px 0; font-size: 13.5px; color:#c62828;">📓 내 직업 전용 비밀 조사 일지 기록부</h4>
@@ -177,11 +200,15 @@
     </div>
 
 
+    <!-- [개편] 직업 가이드 모달 - 진영 선택 → 직업 선택 → 설명 보기 인터랙티브 구조 -->
+    <!-- 닫기 버튼이 스크롤 영역 밖(flex 하단)에 고정되어 화면이 작아도 항상 보임 -->
     <div id="role-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <h2 style="color: #7b1fa2; margin-bottom: 15px; border-bottom: 2px solid #7b1fa2; padding-bottom: 8px;">🕵️‍♂️ 교실 마피아 직업 가이드</h2>
-            <div id="role-modal-body"></div>
-            <button onclick="window.closeRoleModal()" style="background-color: #7b1fa2; margin-top: 15px; padding: 10px;">창 닫기</button>
+        <div class="modal-content role-guide-modal">
+            <h2 class="role-guide-title">🕵️‍♂️ 교실 마피아 직업 가이드</h2>
+            <div id="role-modal-body">
+                <!-- auth.js의 showRoleDescriptions()가 동적으로 채워줌 -->
+            </div>
+            <button onclick="window.closeRoleModal()" class="role-guide-close-btn">✖ 닫기</button>
         </div>
     </div>
 
