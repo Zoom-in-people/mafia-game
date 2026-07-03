@@ -239,6 +239,7 @@ function handleLogin() {
         if (pw === 'teacherpw') { 
             currentUser = { id: 'admin_master', nick: '교사(관전)', isAdmin: true };
             currentStatus = 'waiting';
+            window._userConfirmedInRoom = false;
             triggerGameViewTransition();
             return;
         } else {
@@ -292,6 +293,7 @@ function handleLogin() {
                 
                 getDb().ref().update(restoreUpdates).then(() => {
                     console.log(`${nick} 학생 인게임 세션 원상 복구 및 난입 안착.`);
+                    window._userConfirmedInRoom = false;
                     triggerGameViewTransition();
                 });
             } else {
@@ -302,6 +304,7 @@ function handleLogin() {
                     joinedAt: firebase.database.ServerValue.TIMESTAMP
                 }).then(() => {
                     console.log(`${nick} 학생 대기실 유령 로그인 해제 후 오버라이트 안착 완료.`);
+                    window._userConfirmedInRoom = false;
                     triggerGameViewTransition();
                 });
             }
@@ -317,10 +320,26 @@ function handleLogin() {
                 nickname: nick,
                 joinedAt: firebase.database.ServerValue.TIMESTAMP
             }).then(() => {
+                window._userConfirmedInRoom = false;
                 triggerGameViewTransition();
             });
         }
     }).catch(err => alert('로그인 처리 중 데이터 통신 오류: ' + err.message));
+}
+
+// [★신규] 대기실 전용 나가기 함수 (게임 중 나가기와 메시지가 다름)
+function handleWaitingExit() {
+    if (!currentUser) return;
+    if (!confirm('대기실에서 나가시겠습니까?')) return;
+
+    if (!currentUser.isAdmin) {
+        window._userConfirmedInRoom = false; // 추방 감지 오작동 방지
+        getDb().ref(`rooms/users/${currentUser.id}`).remove()
+            .then(() => clearSession())
+            .catch(() => clearSession());
+    } else {
+        clearSession();
+    }
 }
 
 function handleExit() {

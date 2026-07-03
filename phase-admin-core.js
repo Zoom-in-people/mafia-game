@@ -140,9 +140,11 @@ function handleStartGame() {
         updates['game/shaman_ghost_votes'] = "none";
         updates['game/day_vote_retry_count'] = 0;
         updates['game/trial_retry_count'] = 0;
-        // [★신규] 게임 시작 시 이전 밤 채팅 데이터 초기화
+        // [★신규] 게임 시작 시 이전 밤 채팅·익명 번호 데이터 초기화
         updates['game/night_chats'] = null;
         updates['game/night_chat_counts'] = null;
+        updates['game/anon_identities'] = null;
+        updates['game/anon_identity_counter'] = 0;
 
         adminRevealMap = {}; 
         
@@ -186,9 +188,11 @@ function handleResetToWaiting() {
         updates['game/shaman_ghost_votes'] = "none";
         updates['game/day_vote_retry_count'] = 0;
         updates['game/trial_retry_count'] = 0;
-        // [★신규] 대기실 복구 시 밤 채팅 초기화
+        // [★신규] 대기실 복구 시 밤 채팅·익명 번호 초기화
         updates['game/night_chats'] = null;
         updates['game/night_chat_counts'] = null;
+        updates['game/anon_identities'] = null;
+        updates['game/anon_identity_counter'] = 0;
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;

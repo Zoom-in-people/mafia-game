@@ -44,10 +44,12 @@ window.processDayToNightShamanSettlement = function(parentUpdates) {
             }
         }
 
-        // 유령 투표소 및 [★신규] 밤 채팅 초기화 (새 밤이 시작되면 이전 밤 채팅 삭제)
+        // 유령 투표소·밤 채팅·익명 번호 초기화 (새 밤마다 채팅과 익명 번호를 리셋)
         updates['game/shaman_ghost_votes'] = null;
         updates['game/night_chats'] = null;
         updates['game/night_chat_counts'] = null;
+        updates['game/anon_identities'] = null;
+        updates['game/anon_identity_counter'] = 0;
         
         // 데이터 업로드 완료 후 안전하게 AI 오토메이션 트리거 가동
         getDb().ref().update(updates).then(() => {

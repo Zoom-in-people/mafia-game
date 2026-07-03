@@ -96,6 +96,22 @@ window.rerenderAllUI = function() {
     if (gameView)     gameView.style.display     = (status !== 'waiting' && status !== 'game_over') ? 'block' : 'none';
     if (gameOverView) gameOverView.style.display = (status === 'game_over') ? 'block' : 'none';
 
+    // [★신규] 추방 감지: 대기실에서 내 UID가 rooms/users에서 사라지면 추방된 것
+    // _userConfirmedInRoom 플래그로 로그인 직후 Firebase 데이터가 아직 도착하지 않은
+    // 타이밍 문제로 인한 오작동을 방지합니다.
+    if (status === 'waiting' && currentUser && !currentUser.isAdmin) {
+        if (cachedUsers && cachedUsers[currentUser.id]) {
+            window._userConfirmedInRoom = true; // 내가 방에 있음이 서버로 확인됨
+        }
+        if (window._userConfirmedInRoom && cachedUsers && !cachedUsers[currentUser.id]) {
+            // 한 번은 확인됐는데 지금 없음 → 추방됨
+            window._userConfirmedInRoom = false;
+            alert('🚪 교사에 의해 대기실에서 추방되었습니다.');
+            clearSession();
+            return;
+        }
+    }
+
     if (status === 'waiting') {
         renderWaitingPlayerGrid(cachedUsers || {});
         const setupPanel = document.getElementById('admin-setup-panel');
@@ -176,8 +192,8 @@ function renderNightChats(gameData, players) {
     const mafiaSection = document.getElementById('mafia-chat-section');
     const mafiaMessages = document.getElementById('mafia-chat-messages');
 
-    // 마피아이거나 교사(관제)이면 볼 수 있음, 밤에만 노출
-    const canSeeMafia = isNight && (myRole === 'mafia' || isAdmin);
+    // [★수정] 마피아 본인만 볼 수 있음 - 교사도 볼 수 없어 비밀 대화가 보장됨
+    const canSeeMafia = isNight && myRole === 'mafia' && !isAdmin;
     if (mafiaSection) mafiaSection.style.display = canSeeMafia ? 'block' : 'none';
 
     if (canSeeMafia && mafiaMessages) {
@@ -220,9 +236,11 @@ function renderNightChats(gameData, players) {
         if (anonList.length === 0) {
             anonMessages.innerHTML = '<div class="chat-no-msg">아직 익명 채팅이 없습니다.</div>';
         } else {
+            // [★수정] anonNum 필드로 익명1, 익명2... 구분 표시
             anonMessages.innerHTML = anonList.map(msg => {
+                const label = msg.anonNum ? `익명${msg.anonNum}` : '익명';
                 return `<div class="chat-msg">
-                    <span class="chat-sender" style="color:#5c6bc0;">익명:</span>${msg.text || ''}
+                    <span class="chat-sender" style="color:#5c6bc0;">${label}:</span>${msg.text || ''}
                 </div>`;
             }).join('');
         }
@@ -296,31 +314,46 @@ window.sendAnonChat = function() {
     const myData = cachedPlayers ? cachedPlayers[currentUser.id] : null;
     if (!myData || !myData.isAlive) return;
 
-    const countRef = getDb().ref(`game/night_chat_counts/${currentUser.id}`);
+    const uid = currentUser.id;
 
-    // 트랜잭션으로 5회 초과 방지 (동시 전송 경쟁 조건 안전 처리)
-    countRef.transaction(currentCount => {
-        const count = currentCount || 0;
-        if (count >= 5) return; // undefined 반환 → 트랜잭션 중단
-        return count + 1;
-    }, (error, committed) => {
-        if (error) {
-            console.error('채팅 카운트 트랜잭션 오류:', error);
-            return;
-        }
-        if (!committed) {
-            alert('💬 익명 채팅 가능 횟수(5회)를 모두 사용했습니다!');
-            return;
-        }
-        // 카운트 증가 성공 → 메시지 전송
-        getDb().ref('game/night_chats/anon').push({
-            text: text,
-            ts:   firebase.database.ServerValue.TIMESTAMP
-        }).then(() => {
-            input.value = '';
-            input.focus();
-        }).catch(err => console.error('익명 채팅 전송 오류:', err));
-    });
+    // [★신규] anonNum을 포함해서 메시지를 전송하는 내부 함수
+    const doSendWithAnonNum = (anonNum) => {
+        getDb().ref(`game/night_chat_counts/${uid}`).transaction(currentCount => {
+            const count = currentCount || 0;
+            if (count >= 5) return; // 트랜잭션 중단
+            return count + 1;
+        }, (error, committed) => {
+            if (error) return console.error('채팅 카운트 트랜잭션 오류:', error);
+            if (!committed) {
+                alert('💬 익명 채팅 가능 횟수(5회)를 모두 사용했습니다!');
+                return;
+            }
+            getDb().ref('game/night_chats/anon').push({
+                anonNum: anonNum, // 익명N 번호
+                text: text,
+                ts: firebase.database.ServerValue.TIMESTAMP
+            }).then(() => {
+                input.value = '';
+                input.focus();
+            }).catch(err => console.error('익명 채팅 전송 오류:', err));
+        });
+    };
+
+    // [★신규] 이미 이번 밤에 번호가 부여된 경우 재사용, 없으면 새 번호 발급
+    const existingAnonNum = cachedGameData?.anon_identities?.[uid];
+    if (existingAnonNum) {
+        doSendWithAnonNum(existingAnonNum);
+    } else {
+        // anon_identity_counter를 1 증가시켜 고유 번호 발급 (동시 발급 경쟁 조건 안전 처리)
+        getDb().ref('game/anon_identity_counter').transaction(c => (c || 0) + 1, (err, committed, snap) => {
+            if (err || !committed) return console.error('익명 번호 발급 오류:', err);
+            const newNum = snap.val();
+            // 내 UID → 번호 매핑을 서버에 저장 (uid는 저장되지 않으므로 다른 학생은 번호만 볼 수 있음)
+            getDb().ref(`game/anon_identities/${uid}`).set(newNum).then(() => {
+                doSendWithAnonNum(newNum);
+            });
+        });
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────
