@@ -37,7 +37,8 @@ const roleIcons = {
     assemblyman: "⚖️",
     terrorist: "💣",
     gangster: "🔨",
-    lovers: "💕"
+    lovers: "💕",
+    reporter: "📰"
 };
 
 

@@ -77,6 +77,12 @@ const _roleGuideData = {
         timing: '🌙 밤에 활동',
         desc: '밤에 지목한 대상을 협박 폭행하여 다음 날 낮 투표권을 완전히 박탈합니다.\n(의심자 지목 투표 + 사형대 찬반 표결 모두 불가합니다.)'
     },
+    reporter: {
+        icon: '📰', name: '기자',
+        factionLabel: '시민 진영', factionClass: 'tag-faction-citizen',
+        timing: '🌙 밤에 활동 (평생 1회)',
+        desc: '밤에 닉네임 카드 한 명을 지목하여 특종 취재를 시도합니다.\n다음 날 낮, 지목한 학생의 정체(직업)가 전체 학생에게 공지됩니다.\n이 능력은 게임 전체에서 딱 한 번만 사용할 수 있습니다.'
+    },
     lovers: {
         icon: '💕', name: '연인',
         factionLabel: '시민 진영', factionClass: 'tag-faction-citizen',
@@ -96,7 +102,7 @@ const _factionGroups = {
         label: '⚪ 시민 진영',
         subLabel: '시민 · 경찰 · 사립탐정 · 무당 · 의사 · 군인 · 국회의원 · 테러리스트 · 건달 · 연인',
         btnClass: 'faction-citizen',
-        roles: ['citizen', 'police', 'detective', 'mudang', 'doctor', 'soldier', 'assemblyman', 'terrorist', 'gangster', 'lovers']
+        roles: ['citizen', 'police', 'detective', 'mudang', 'doctor', 'soldier', 'assemblyman', 'terrorist', 'gangster', 'lovers', 'reporter']
     }
 };
 

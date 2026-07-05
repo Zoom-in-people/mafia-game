@@ -27,7 +27,8 @@ function getRoleKoreanName(role) {
         'assemblyman': '국회의원',
         'terrorist': '테러리스트',
         'gangster': '건달',
-        'lovers': '연인'
+        'lovers': '연인',
+        'reporter': '기자'
     };
     return roleMap[cleanRole] || role;
 }
@@ -70,6 +71,24 @@ window.rerenderAllUI = function() {
     if (!cachedGameData) return;
 
     const status = currentStatus || 'waiting';
+
+    // [★핵심 오류 교정] 팝업 알림 체크를 최상단으로 이동했습니다.
+    // 기존에는 이 체크가 renderInGameBoard() 안에만 있었는데, 그 함수는
+    // status가 'game_over'가 아닐 때만 호출됩니다. 즉 마지막 처형/사망으로
+    // 게임이 끝나는 바로 그 순간의 결과 팝업은 게임오버 화면으로 바로 전환되며
+    // 항상 스킵되고 있었습니다. (게임이 계속되는 일반 사망/처형은 뜨고,
+    // 그 사망으로 게임이 끝나면 안 뜨는 "뜰 때도 있고 안 뜰 때도 있다" 증상의 원인)
+    // 또한 교사가 "계정 관리" 화면을 보고 있는 도중에도 게임 이벤트가 발생하면
+    // 조기 return 때문에 팝업이 스킵되던 문제도 함께 해결했습니다.
+    // 이제 로그인한 사람이라면 화면 상태와 무관하게 항상 동일하게 팝업을 받습니다.
+    if (currentUser && cachedGameData.last_popup_alert_text && cachedGameData.last_popup_alert_text !== 'none') {
+        const popupEventId = String(cachedGameData.last_popup_alert_id || cachedGameData.last_popup_alert_text);
+        const localCachedAlertId = localStorage.getItem('mafia_last_processed_alert_id');
+        if (localCachedAlertId !== popupEventId) {
+            localStorage.setItem('mafia_last_processed_alert_id', popupEventId);
+            window.showCustomAlertModal(cachedGameData.last_popup_alert_text);
+        }
+    }
 
     if (isInAdminAccountsView) {
         if (currentUser && currentUser.isAdmin) {
@@ -428,16 +447,8 @@ function renderInGameBoard(gameData, players) {
         statusMsg.className = (status === 'night_action') ? 'alert-box night' : 'alert-box';
     }
 
-    // 팝업 알림 - 고유 타임스탬프(last_popup_alert_id)로 중복 방지
-    // 동일 문구가 반복되어도 이벤트 ID가 다르면 모든 학생에게 동시에 표시됩니다.
-    if (gameData.last_popup_alert_text && gameData.last_popup_alert_text !== 'none') {
-        const popupEventId = String(gameData.last_popup_alert_id || gameData.last_popup_alert_text);
-        const localCachedAlertId = localStorage.getItem('mafia_last_processed_alert_id');
-        if (localCachedAlertId !== popupEventId) {
-            localStorage.setItem('mafia_last_processed_alert_id', popupEventId);
-            window.showCustomAlertModal(gameData.last_popup_alert_text);
-        }
-    }
+    // 팝업 알림 체크는 rerenderAllUI() 최상단으로 이동했습니다.
+    // (game_over 전환 시에도 빠짐없이 뜨도록 하기 위함 - 상세 사유는 rerenderAllUI 주석 참고)
 
     if (currentUser && !currentUser.isAdmin) {
         const myData = players[currentUser.id];
@@ -472,6 +483,10 @@ function renderPlayerGridContainer(gameData, players) {
     const status    = gameData.status || 'day_discuss';
     const voteState = gameData.vote_state || 'none';
 
+    // [★신규] 스파이-마피아 접선 성공 여부 (게임 전체에서 한 번 성공하면 계속 유지됨)
+    const contactRevealed = gameData.contact_revealed === true;
+    const contactSpyUid   = gameData.contact_spy_uid || 'none';
+
     for (let id in players) {
         const p = players[id];
         let cardClasses = ['grid-card'];
@@ -492,6 +507,17 @@ function renderPlayerGridContainer(gameData, players) {
             }
             if (myRole === 'lovers' && p.role === 'lovers') {
                 loversAppendText = `<span style="font-size:10px; color:#e91e63;">💕연인</span>`;
+            }
+            // [★신규] 스파이-마피아 접선 성공 시 서로만 보이는 표시
+            // (스파이는 접선 성공 후 마피아 전체 명단을 알게 되므로 모든 마피아 카드에 표시,
+            //  마피아는 접선한 스파이 한 명만 알아볼 수 있음)
+            if (contactRevealed) {
+                if (myRole === 'spy' && myId !== 'none' && p.role === 'mafia') {
+                    badgeText += `<span class="badge" style="background:#6a1b9a;">🔗</span>`;
+                }
+                if (myRole === 'mafia' && id === contactSpyUid) {
+                    badgeText += `<span class="badge" style="background:#6a1b9a;">🔗</span>`;
+                }
             }
         }
 
@@ -539,6 +565,10 @@ window.handleGridCardClick = function(targetUid) {
             } else {
                 if (myRole === 'mafia' && targetUser.role === 'mafia') {
                     return alert('🚨 동료 마피아를 사살할 수 없습니다! (팀킬 방지 가드)');
+                }
+                // [★신규] 기자 능력은 게임 전체에서 1회만 사용 가능
+                if (myRole === 'reporter' && myData.reporterUsed) {
+                    return alert('📰 기자 능력은 이미 사용하셨습니다. (평생 1회 제한)');
                 }
                 updates[`game/players/${myId}/nightTarget`] = (myData.nightTarget === targetUid) ? 'none' : targetUid;
             }
@@ -605,7 +635,7 @@ function renderLogsAndChronicles(gameData, players) {
         const myData   = players[currentUser.id] || {};
         const logContent = myData.personalLog || 'none';
 
-        if (['mafia', 'spy', 'police', 'detective', 'mudang'].includes(myData.role) && logContent !== 'none') {
+        if (['mafia', 'spy', 'police', 'detective', 'mudang', 'reporter'].includes(myData.role) && logContent !== 'none') {
             logBox.style.display = 'block';
             logList.innerHTML = logContent.split('\n').map(line => `<div>${line}</div>`).join('');
             logList.scrollTop = logList.scrollHeight;

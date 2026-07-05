@@ -89,7 +89,7 @@ function handleStartGame() {
             rolePool.push("lovers"); rolePool.push("lovers");
         }
 
-        const singleRoles = ["spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster"];
+        const singleRoles = ["spy", "detective", "mudang", "police", "doctor", "soldier", "assemblyman", "terrorist", "gangster", "reporter"];
         singleRoles.forEach(roleId => {
             const chk = document.getElementById(`cfg-${roleId}`);
             if (chk && chk.checked) rolePool.push(roleId);
@@ -122,6 +122,7 @@ function handleStartGame() {
             updates[`game/players/${uid}/personalLog`] = "none";
             updates[`game/players/${uid}/deathReason`] = "none";
             updates[`game/players/${uid}/trialDecision`] = "none";
+            updates[`game/players/${uid}/reporterUsed`] = false; // [★신규] 기자 능력 1회 사용 여부
         });
 
         updates['game/status'] = 'day_discuss'; 
@@ -145,6 +146,11 @@ function handleStartGame() {
         updates['game/night_chat_counts'] = null;
         updates['game/anon_identities'] = null;
         updates['game/anon_identity_counter'] = 0;
+        // [★신규] 스파이-마피아 접선 성공 표시 초기화
+        updates['game/contact_revealed'] = false;
+        updates['game/contact_spy_uid'] = "none";
+        // [★신규] 기자 특종 공지 초기화
+        updates['game/reporter_announcement'] = "none";
 
         adminRevealMap = {}; 
         
@@ -193,6 +199,10 @@ function handleResetToWaiting() {
         updates['game/night_chat_counts'] = null;
         updates['game/anon_identities'] = null;
         updates['game/anon_identity_counter'] = 0;
+        // [★신규] 스파이-마피아 접선 표시 및 기자 공지 초기화
+        updates['game/contact_revealed'] = false;
+        updates['game/contact_spy_uid'] = "none";
+        updates['game/reporter_announcement'] = "none";
 
         getDb().ref().update(updates).then(() => {
             currentQuiz = null;

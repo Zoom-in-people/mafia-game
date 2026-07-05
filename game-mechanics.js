@@ -118,11 +118,12 @@ function checkVictoryFaction(players, pendingUpdates) {
         }
 
         if (isStillAlive) {
-            // 마피아 머릿수와 시민 진영 머릿수를 각각 분리 카운트
-            if (players[id].role === 'mafia') {
+            // [★오류 교정] 기존엔 role === 'mafia'만 마피아 진영으로 카운트하고
+            // 스파이는 "기존 규칙에 의거 시민 머릿수로 합산"한다고 되어 있었으나,
+            // 스파이는 마피아 진영 소속이므로 마피아 머릿수에 포함되어야 정상입니다.
+            if (players[id].role === 'mafia' || players[id].role === 'spy') {
                 aliveMafia++;
             } else {
-                // 기존 규칙에 의거, 스파이를 포함한 모든 특수직업 및 일반 시민은 시민 머릿수로 합산 계산
                 aliveCitizen++;
             }
         }

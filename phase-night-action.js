@@ -87,7 +87,8 @@ function processNightActions() {
         let reports = []; let deadList = []; const updates = {};
         let mafiaTargets = {}; let protectedUid = "none";
         let spyTargetUid = "none"; let gangsterTargetUid = "none";
-        let nextShamanTargetUid = "none"; 
+        let nextShamanTargetUid = "none";
+        let reporterUid = "none"; let reporterTargetUid = "none"; // [★신규] 기자 능력 추적
 
         for (let id in players) {
             const p = players[id];
@@ -97,6 +98,11 @@ function processNightActions() {
             if (p.role === 'spy' && p.nightTarget && p.nightTarget !== 'none') spyTargetUid = p.nightTarget;
             if (p.role === 'gangster' && p.nightTarget && p.nightTarget !== 'none') gangsterTargetUid = p.nightTarget;
             if (p.role === 'mudang' && p.nightTarget && p.nightTarget !== 'none') nextShamanTargetUid = p.nightTarget;
+            // [★신규] 기자가 아직 능력을 안 썼고, 이번 밤에 대상을 지목했다면 기록
+            if (p.role === 'reporter' && !p.reporterUsed && p.nightTarget && p.nightTarget !== 'none') {
+                reporterUid = id;
+                reporterTargetUid = p.nightTarget;
+            }
         }
 
         updates['game/shaman_target_uid'] = nextShamanTargetUid;
@@ -158,6 +164,10 @@ function processNightActions() {
                         updates[`game/players/${id}/personalLog`] = mLog ? `${mLog}\n${mafiaAlertLine}` : mafiaAlertLine;
                     }
                 }
+
+                // [★신규] 교실 생존 현황판에서 마피아↔스파이 서로만 알아볼 수 있는 표시를 위한 전역 플래그
+                updates['game/contact_revealed'] = true;
+                if (spyUid) updates['game/contact_spy_uid'] = spyUid;
             } else {
                 // 접선 실패 - 스파이만 결과 확인
                 const targetRoleDesc = spyT.role === 'citizen' ? "일반 시민입니다." : "시민 진영의 직업을 가지고 있습니다.";
@@ -215,6 +225,20 @@ function processNightActions() {
             reports.push(`🥊 건달의 폭행으로 [${players[gangsterTargetUid].nickname}] 학생은 오늘 낮 투표권이 박탈됩니다!`);
             updates['game/last_night_assault'] = gangsterTargetUid;
         } else { updates['game/last_night_assault'] = "none"; }
+
+        // [★신규] 기자의 특종 취재 - 밤에 지목한 대상의 정체를 다음 날 낮에 전체 공지
+        // 능력은 딱 1회만 사용 가능하며, 실제로 사용(지목)했을 때만 소모됩니다.
+        if (reporterUid !== "none" && players[reporterTargetUid]) {
+            const reporterTargetUser = players[reporterTargetUid];
+            const revealedRoleName = getRoleKoreanName(reporterTargetUser.role);
+            reports.push(`📰 [특종 보도] 기자의 취재 결과, [${reporterTargetUser.nickname}] 학생의 정체는 '${revealedRoleName}' 입니다!`);
+            updates[`game/players/${reporterUid}/reporterUsed`] = true;
+
+            // 기자 본인 일지에도 기록
+            const reporterOwnLog = (players[reporterUid].personalLog === "none") ? "" : (players[reporterUid].personalLog || "");
+            const reporterLogLine = `[${currentTurnVal}일차 밤] 📰 특종 취재 완료! [${reporterTargetUser.nickname}] -> '${revealedRoleName}' (능력 소진)`;
+            updates[`game/players/${reporterUid}/personalLog`] = reporterOwnLog ? `${reporterOwnLog}\n${reporterLogLine}` : reporterLogLine;
+        }
 
         let morningSuspectCounts = {};
         for (let id in players) {
