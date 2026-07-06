@@ -22,6 +22,20 @@ function getDb() {
     return null;
 }
 
+// [★신규 - 팝업 큐 시스템] 기존에는 game/last_popup_alert_text 단일 값을 덮어쓰는 방식이라,
+// 학생 기기가 순간적으로 연결이 불안정하거나 백그라운드에 있는 사이 이벤트가 연달아 발생하면
+// 이전 알림이 그냥 사라지고 최신 알림으로 덮어써져 "안 뜨는" 문제가 생겼습니다.
+// game/popup_events/{고유키} 형태의 큐에 이벤트를 계속 쌓아두고, 각 클라이언트가
+// "내가 마지막으로 본 지점"부터 밀린 알림을 순서대로 전부 보여주는 방식으로 교체합니다.
+// push().key는 서버 왕복 없이 클라이언트에서 즉시 생성되며, 시간순으로 정렬 가능한 값입니다.
+function queuePopupAlert(updates, text) {
+    const newKey = getDb().ref('game/popup_events').push().key;
+    updates[`game/popup_events/${newKey}`] = {
+        text: text,
+        ts: firebase.database.ServerValue.TIMESTAMP
+    };
+}
+
 
 // --- [3] 인게임 직업별 대표 디자인 이모지 매핑 ---
 // 결과 현황판이나 교사 모니터링 테이블에서 직업을 직관적으로 그릴 때 참조합니다.

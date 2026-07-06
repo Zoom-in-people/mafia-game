@@ -53,6 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 600);
 });
 
+// [★신규] 팝업 큐 처리 상태 (한 번에 하나씩만 순서대로 보여주기 위한 로컬 상태)
+window._popupQueue = [];        // 아직 안 보여준 이벤트 키 목록 (시간순 정렬됨)
+window._popupQueueBusy = false; // 현재 모달이 떠 있는 중인지 여부
+
 window.showCustomAlertModal = function(text) {
     const modal = document.getElementById('custom-alert-modal');
     const body = document.getElementById('custom-alert-modal-body');
@@ -65,30 +69,63 @@ window.showCustomAlertModal = function(text) {
 window.closeCustomAlertModal = function() {
     const modal = document.getElementById('custom-alert-modal');
     if (modal) modal.style.display = 'none';
+    // [★신규] 큐에 밀린 다음 알림이 있으면 살짝 텀을 두고 이어서 보여줌
+    window._popupQueueBusy = false;
+    setTimeout(() => window._processPopupQueueNext(), 350);
 };
+
+// [★신규] 큐에서 다음 알림 하나를 꺼내 보여줌 (이미 하나가 떠 있으면 대기)
+window._processPopupQueueNext = function() {
+    if (window._popupQueueBusy) return;
+    if (window._popupQueue.length === 0) return;
+
+    const nextKey = window._popupQueue.shift();
+    const events = (cachedGameData && cachedGameData.popup_events) || {};
+    const eventData = events[nextKey];
+
+    // 이미 지워졌거나 유효하지 않은 항목이면 표시한 것으로 치고 다음 것으로 넘어감
+    if (!eventData || !eventData.text) {
+        localStorage.setItem('mafia_last_shown_popup_key', nextKey);
+        return window._processPopupQueueNext();
+    }
+
+    window._popupQueueBusy = true;
+    localStorage.setItem('mafia_last_shown_popup_key', nextKey);
+    window.showCustomAlertModal(eventData.text);
+};
+
+// [★신규] Firebase에 새로 쌓인 알림 이벤트를 확인해서 큐에 추가
+// Firebase push() 키는 시간순으로 문자열 정렬이 가능하도록 설계되어 있어서,
+// "마지막으로 본 키보다 사전순으로 큰 키"만 골라내면 정확히 "아직 못 본 알림"이 됩니다.
+function checkAndQueueNewPopups() {
+    if (!currentUser) return;
+    const events = (cachedGameData && cachedGameData.popup_events) || {};
+    const allKeys = Object.keys(events).sort();
+    if (allKeys.length === 0) return;
+
+    const lastShownKey = localStorage.getItem('mafia_last_shown_popup_key') || '';
+    const newKeys = allKeys.filter(k => k > lastShownKey && !window._popupQueue.includes(k));
+
+    if (newKeys.length > 0) {
+        window._popupQueue.push(...newKeys);
+        window._processPopupQueueNext();
+    }
+}
 
 window.rerenderAllUI = function() {
     if (!cachedGameData) return;
 
     const status = currentStatus || 'waiting';
 
-    // [★핵심 오류 교정] 팝업 알림 체크를 최상단으로 이동했습니다.
-    // 기존에는 이 체크가 renderInGameBoard() 안에만 있었는데, 그 함수는
-    // status가 'game_over'가 아닐 때만 호출됩니다. 즉 마지막 처형/사망으로
-    // 게임이 끝나는 바로 그 순간의 결과 팝업은 게임오버 화면으로 바로 전환되며
-    // 항상 스킵되고 있었습니다. (게임이 계속되는 일반 사망/처형은 뜨고,
-    // 그 사망으로 게임이 끝나면 안 뜨는 "뜰 때도 있고 안 뜰 때도 있다" 증상의 원인)
-    // 또한 교사가 "계정 관리" 화면을 보고 있는 도중에도 게임 이벤트가 발생하면
-    // 조기 return 때문에 팝업이 스킵되던 문제도 함께 해결했습니다.
-    // 이제 로그인한 사람이라면 화면 상태와 무관하게 항상 동일하게 팝업을 받습니다.
-    if (currentUser && cachedGameData.last_popup_alert_text && cachedGameData.last_popup_alert_text !== 'none') {
-        const popupEventId = String(cachedGameData.last_popup_alert_id || cachedGameData.last_popup_alert_text);
-        const localCachedAlertId = localStorage.getItem('mafia_last_processed_alert_id');
-        if (localCachedAlertId !== popupEventId) {
-            localStorage.setItem('mafia_last_processed_alert_id', popupEventId);
-            window.showCustomAlertModal(cachedGameData.last_popup_alert_text);
-        }
-    }
+    // [★핵심 오류 교정 - 큐 시스템으로 재교체]
+    // 기존엔 game/last_popup_alert_text 단일 값을 덮어쓰는 방식이라, 학생 기기가
+    // 순간적으로 연결이 불안정하거나 백그라운드에 있는 사이 이벤트가 연달아 발생하면
+    // 이전 알림이 사라지고 최신 알림에만 덮어써져 일부 학생에게 알림이 누락되는 문제가 있었습니다.
+    // (게다가 game_over 전환 직후 팝업이 스킵되던 문제도 있었습니다.)
+    // 이제는 game/popup_events 큐에 쌓인 이벤트 중 "내가 아직 못 본 것"을 전부 확인해서
+    // 순서대로 하나씩 보여주므로, 화면 상태나 접속 상태와 무관하게 모든 학생이
+    // 언젠가는 반드시 모든 알림을 (순서대로) 받아보게 됩니다.
+    checkAndQueueNewPopups();
 
     if (isInAdminAccountsView) {
         if (currentUser && currentUser.isAdmin) {
@@ -466,10 +503,46 @@ function renderInGameBoard(gameData, players) {
     renderPlayerGridContainer(gameData, players);
     renderStudentActionPanel(gameData, players);
     renderTeacherControlTower(gameData, players);
+    renderSuspectRankPanel(gameData); // [★신규] 밤사이 의심 순위 랭킹 버튼/내용 갱신
 
     // [★신규] 밤 채팅방 렌더 (마지막에 호출)
     renderNightChats(gameData, players);
 }
+
+// [★신규] 밤사이 학생(시민류 역할 + 능력을 소진한 기자)들이 지목한 "의심자" 투표를
+// 다음 날 낮에 득표순으로 정리해서 보여주는 랭킹 패널.
+// game/last_night_suspects는 processNightActions()에서 이미 { 닉네임: 득표수 } 형태로 계산되어 있습니다.
+function renderSuspectRankPanel(gameData) {
+    const rankBtn  = document.getElementById('rank-btn');
+    const rankList = document.getElementById('rank-list');
+    if (!rankBtn || !rankList) return;
+
+    const status = gameData.status || 'day_discuss';
+    const suspects = gameData.last_night_suspects;
+    const hasData = suspects && suspects !== 'none' && typeof suspects === 'object' && Object.keys(suspects).length > 0;
+
+    // 낮 시간대 + 집계된 데이터가 있을 때만 버튼 노출 (밤이 되거나 데이터가 없으면 숨김)
+    if (status === 'day_discuss' && hasData) {
+        rankBtn.style.display = 'block';
+    } else {
+        rankBtn.style.display = 'none';
+        rankList.style.display = 'none';
+        return;
+    }
+
+    // 득표수 내림차순 정렬
+    const sorted = Object.entries(suspects).sort((a, b) => b[1] - a[1]);
+    rankList.innerHTML = sorted.map(([nick, count], idx) => {
+        return `<div>${idx + 1}위 — <b>${nick}</b> (${count}표)</div>`;
+    }).join('');
+}
+
+// 랭킹 박스 펼치기/접기 토글
+window.toggleSuspectRank = function() {
+    const rankList = document.getElementById('rank-list');
+    if (!rankList) return;
+    rankList.style.display = (rankList.style.display === 'none' || !rankList.style.display) ? 'block' : 'none';
+};
 
 function renderPlayerGridContainer(gameData, players) {
     const gridContainer = document.getElementById('player-grid');
@@ -487,6 +560,10 @@ function renderPlayerGridContainer(gameData, players) {
     const contactRevealed = gameData.contact_revealed === true;
     const contactSpyUid   = gameData.contact_spy_uid || 'none';
 
+    // [★신규] 기자가 능력을 이미 사용했다면, 밤에는 시민처럼 의심자 지목(suspect) 방식으로 전환
+    const isReporterExhausted = (myRole === 'reporter' && myData.reporterUsed === true);
+    const citizenLikeRoles = ['citizen', 'lovers', 'soldier', 'assemblyman', 'terrorist'];
+
     for (let id in players) {
         const p = players[id];
         let cardClasses = ['grid-card'];
@@ -497,7 +574,7 @@ function renderPlayerGridContainer(gameData, players) {
 
         if (status === 'day_discuss' && voteState === 'voting' && myData.dayVote === id) cardClasses.push('my-selected');
         if (status === 'night_action' && myData.nightTarget === id) cardClasses.push('my-selected');
-        if (status === 'night_action' && ['citizen', 'lovers', 'soldier', 'assemblyman', 'terrorist'].includes(myRole) && myData.suspect === id) cardClasses.push('my-selected');
+        if (status === 'night_action' && (citizenLikeRoles.includes(myRole) || isReporterExhausted) && myData.suspect === id) cardClasses.push('my-selected');
 
         let aiSubText = p.isAiControlled ? `<div style="font-size:10px; color:#ef6c00; font-weight:bold;">(AI로 대체됨)</div>` : '';
 
@@ -560,16 +637,18 @@ window.handleGridCardClick = function(targetUid) {
             updates[`game/players/${myId}/dayVote`] = (myData.dayVote === targetUid) ? 'none' : targetUid;
         }
         else if (status === 'night_action') {
-            if (['citizen', 'lovers', 'soldier', 'assemblyman', 'terrorist'].includes(myRole)) {
+            // [★수정] 기자가 이미 능력을 사용했다면(reporterUsed), 그 이후로는
+            // 일반 시민과 동일하게 "의심자 지목(suspect)" 방식으로 참여합니다.
+            const citizenLikeRoles = ['citizen', 'lovers', 'soldier', 'assemblyman', 'terrorist'];
+            const isReporterExhausted = (myRole === 'reporter' && myData.reporterUsed === true);
+
+            if (citizenLikeRoles.includes(myRole) || isReporterExhausted) {
                 updates[`game/players/${myId}/suspect`] = (myData.suspect === targetUid) ? 'none' : targetUid;
             } else {
                 if (myRole === 'mafia' && targetUser.role === 'mafia') {
                     return alert('🚨 동료 마피아를 사살할 수 없습니다! (팀킬 방지 가드)');
                 }
-                // [★신규] 기자 능력은 게임 전체에서 1회만 사용 가능
-                if (myRole === 'reporter' && myData.reporterUsed) {
-                    return alert('📰 기자 능력은 이미 사용하셨습니다. (평생 1회 제한)');
-                }
+                // 기자가 아직 능력을 안 썼다면 여기로 와서 특종 취재 대상(nightTarget)을 지목
                 updates[`game/players/${myId}/nightTarget`] = (myData.nightTarget === targetUid) ? 'none' : targetUid;
             }
         }

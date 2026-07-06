@@ -49,8 +49,7 @@ function serverFinishDayVote() {
             updates["game/day_vote_retry_count"] = result.nextRetry;
             updates["game/vote_state"] = 'voting'; 
             for (let id in players) { updates[`game/players/${id}/dayVote`] = "none"; }
-            updates['game/last_popup_alert_text'] = `🚨 최다 득표 동표가 발생하여 재투표를 실시합니다!\n(현재 ${result.nextRetry}회차 재투표 진행)`;
-            updates['game/last_popup_alert_id'] = firebase.database.ServerValue.TIMESTAMP;
+            queuePopupAlert(updates, `🚨 최다 득표 동표가 발생하여 재투표를 실시합니다!\n(현재 ${result.nextRetry}회차 재투표 진행)`);
             
             getDb().ref().update(updates).then(() => {
                 // 재투표판이 열렸으므로 AI 봇들도 다시 투표하도록 트리거
@@ -68,8 +67,7 @@ function serverFinishDayVote() {
                 updates['game/status'] = 'night_action';
                 updates['game/vote_state'] = 'none';
                 updates['game/morning_report'] = "낮 동안 아무도 투표하지 않아 사형대 재판 없이 밤이 되었습니다.";
-                updates['game/last_popup_alert_text'] = "낮 투표가 무표 처리되어 즉시 밤이 되었습니다.";
-                updates['game/last_popup_alert_id'] = firebase.database.ServerValue.TIMESTAMP;
+                queuePopupAlert(updates, "낮 투표가 무표 처리되어 즉시 밤이 되었습니다.");
                 
                 getDb().ref().update(updates).then(() => {
                     if (typeof window.processDayToNightShamanSettlement === 'function') {
@@ -125,8 +123,7 @@ function serverCalculateExecution() {
             // 찬반 동표 발생 시 찬반 재투표 실시
             updates['game/trial_retry_count'] = result.nextTRetry;
             for (let id in players) { updates[`game/players/${id}/trialDecision`] = "none"; }
-            updates['game/last_popup_alert_text'] = `🚨 처형/부활 동표(${result.exeCount}대${result.revCount}) 발생으로 인해 재판 찬반 재투표를 실시합니다!`;
-            updates['game/last_popup_alert_id'] = firebase.database.ServerValue.TIMESTAMP;
+            queuePopupAlert(updates, `🚨 처형/부활 동표(${result.exeCount}대${result.revCount}) 발생으로 인해 재판 찬반 재투표를 실시합니다!`);
             
             getDb().ref().update(updates).then(() => {
                 if (typeof window.triggerAiAutomation === 'function') {
@@ -210,8 +207,7 @@ function serverCalculateExecution() {
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
         updates['game/target_on_trial'] = 'none';
-        updates['game/last_popup_alert_text'] = popupAlertText;
-        updates['game/last_popup_alert_id'] = firebase.database.ServerValue.TIMESTAMP;
+        queuePopupAlert(updates, popupAlertText);
         updates['game/trial_retry_count'] = 0; 
 
         // 낮이 마감되어 밤으로 전환되는 바로 그 순간, 유령들의 투표를 무당에게 인계합니다.

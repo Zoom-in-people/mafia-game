@@ -275,8 +275,7 @@ function processNightActions() {
         
         const nightSummaryReportText = reports.join("\n");
         updates['game/morning_report'] = nightSummaryReportText;
-        updates['game/last_popup_alert_text'] = `[아침 알림 - 밤사이 사건 브리핑]\n\n${nightSummaryReportText}`;
-        updates['game/last_popup_alert_id'] = firebase.database.ServerValue.TIMESTAMP;
+        queuePopupAlert(updates, `[아침 알림 - 밤사이 사건 브리핑]\n\n${nightSummaryReportText}`);
         updates['game/turn'] = currentTurnVal + 1;
         updates['game/quiz_score'] = 0;
         updates['game/current_hint'] = "없음";
