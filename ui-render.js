@@ -572,7 +572,7 @@ function renderPlayerGridContainer(gameData, players) {
 
         if (!p.isAlive) cardClasses.push('dead');
 
-        if (status === 'day_discuss' && voteState === 'voting' && myData.dayVote === id) cardClasses.push('my-selected');
+        if (status === 'day_discuss' && voteState !== 'execution_trial' && myData.dayVote === id) cardClasses.push('my-selected');
         if (status === 'night_action' && myData.nightTarget === id) cardClasses.push('my-selected');
         if (status === 'night_action' && (citizenLikeRoles.includes(myRole) || isReporterExhausted) && myData.suspect === id) cardClasses.push('my-selected');
 
@@ -629,7 +629,7 @@ window.handleGridCardClick = function(targetUid) {
         const myRole  = myData.role || 'citizen';
         const updates = {};
 
-        if (status === 'day_discuss' && voteState === 'voting') {
+        if (status === 'day_discuss' && voteState !== 'execution_trial') {
             if (myId === lastNightAssault) {
                 alert('🥊 어젯밤 건달에게 협박당해 오늘 낮 투표권이 박탈된 상태입니다!');
                 return;
@@ -668,22 +668,20 @@ function renderStudentActionPanel(gameData, players) {
 
     const myId   = currentUser ? currentUser.id : '';
     const myData = players[myId];
+    const status = gameData.status || 'day_discuss';
     const voteState    = gameData.vote_state || 'none';
     const targetOnTrial = gameData.target_on_trial || 'none';
 
-    if (!myData || !myData.isAlive || voteState === 'none') {
+    // [★수정] "투표 개시" 단계가 없어졌으므로, 낮(day_discuss)이면 재판중이 아닌 한
+    // 항상 지목 투표 패널을 띄웁니다. 밤이거나 게임이 끝났으면 패널을 숨깁니다.
+    if (!myData || !myData.isAlive || status !== 'day_discuss') {
         panel.style.display = 'none';
         return;
     }
 
     panel.style.display = 'block';
 
-    if (voteState === 'voting') {
-        title.innerText = '🗳️ 낮 의심자 지목 투표 시간';
-        desc.innerText  = '위 생존 현황 격자판에서 마피아로 의심되는 친구의 카드를 터치해 주세요.';
-        actionArea.style.display = 'none';
-    }
-    else if (voteState === 'execution_trial' && targetOnTrial !== 'none') {
+    if (voteState === 'execution_trial' && targetOnTrial !== 'none') {
         const suspectedNick = players[targetOnTrial]?.nickname || '미상';
         title.innerText = `⚖️ 사형대 재판: [${suspectedNick}] 최종 판결`;
         desc.innerText  = `현재 사형대에 소환된 [${suspectedNick}] 학생을 처형할지, 무죄 방면하여 부활시킬지 최종 서명해 주세요.`;
@@ -696,6 +694,10 @@ function renderStudentActionPanel(gameData, players) {
         } else {
             resultText.style.display = 'none';
         }
+    } else {
+        title.innerText = '🗳️ 낮 의심자 지목 투표 시간';
+        desc.innerText  = '위 생존 현황 격자판에서 마피아로 의심되는 친구의 카드를 터치해 주세요. (교사가 투표를 마감할 때까지 언제든 바꿀 수 있어요)';
+        actionArea.style.display = 'none';
     }
 }
 
@@ -746,13 +748,16 @@ function renderTeacherControlTower(gameData, players) {
     const status    = gameData.status || 'day_discuss';
     const voteState = gameData.vote_state || 'none';
 
-    document.getElementById('admin-start-vote-btn').style.display    = (status === 'day_discuss' && voteState === 'none')              ? 'block' : 'none';
-    document.getElementById('admin-finish-vote-btn').style.display   = (status === 'day_discuss' && voteState === 'voting')            ? 'block' : 'none';
+    // [★수정] "투표 개시" 버튼이 삭제되었으므로, 낮이면 재판중이 아닌 한 항상 "투표 마감" 버튼을 노출합니다.
+    document.getElementById('admin-finish-vote-btn').style.display   = (status === 'day_discuss' && voteState !== 'execution_trial') ? 'block' : 'none';
     document.getElementById('admin-apply-execution-btn').style.display = (status === 'day_discuss' && voteState === 'execution_trial') ? 'block' : 'none';
 
     const stageBtn = document.getElementById('next-stage-btn');
-    stageBtn.style.display = (voteState === 'none') ? 'block' : 'none';
+    stageBtn.style.display = (voteState !== 'execution_trial') ? 'block' : 'none';
     stageBtn.innerText = (status === 'day_discuss') ? '🌙 교사 강제 밤 전환' : '☀️ 교사 밤 행동 마감 및 아침 개시';
+
+    // [★신규] 낮 실시간 투표 현황 - 지목 투표 + 재판 찬반 표결을 교사만 볼 수 있게 집계
+    renderLiveVoteStatus(gameData, players);
 
     const monitorSec = document.getElementById('admin-secret-monitor');
     const tbody      = document.getElementById('admin-live-roles-table');
@@ -779,6 +784,77 @@ function renderTeacherControlTower(gameData, players) {
                 </tr>
             `;
         });
+    }
+}
+
+// [★신규] 교사 전용 실시간 투표 현황판.
+// 낮 지목 투표(dayVote) 및 재판 찬반 표결(trialDecision)이 누구에게 몰리고 있는지
+// 학생들에게는 보이지 않고 교사 화면에만 실시간으로 집계되어 보입니다.
+function renderLiveVoteStatus(gameData, players) {
+    const section = document.getElementById('admin-live-vote-status');
+    const listBox = document.getElementById('admin-live-vote-list');
+    if (!section || !listBox) return;
+
+    const status    = gameData.status || 'day_discuss';
+    const voteState = gameData.vote_state || 'none';
+
+    if (status !== 'day_discuss') {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+
+    if (voteState === 'execution_trial') {
+        // 재판 찬반 표결 집계
+        let executeVoters = [];
+        let reviveVoters = [];
+        let undecidedVoters = [];
+
+        Object.values(players).forEach(p => {
+            if (!p.isAlive) return;
+            if (p.trialDecision === 'execute') executeVoters.push(p.nickname);
+            else if (p.trialDecision === 'revive') reviveVoters.push(p.nickname);
+            else undecidedVoters.push(p.nickname);
+        });
+
+        listBox.innerHTML = `
+            <div><b>💀 처형 찬성 (${executeVoters.length}표):</b> ${executeVoters.join(', ') || '-'}</div>
+            <div><b>😇 무죄 부활 (${reviveVoters.length}표):</b> ${reviveVoters.join(', ') || '-'}</div>
+            <div><b>⏳ 미투표 (${undecidedVoters.length}명):</b> ${undecidedVoters.join(', ') || '-'}</div>
+        `;
+    } else {
+        // 지목 투표(의심자) 집계 - 득표순 정렬
+        const voteCounts = {};
+        const votersByTarget = {};
+        let undecidedVoters = [];
+
+        Object.values(players).forEach(voter => {
+            if (!voter.isAlive) return;
+            const targetId = voter.dayVote;
+            if (!targetId || targetId === 'none') {
+                undecidedVoters.push(voter.nickname);
+                return;
+            }
+            const targetNick = players[targetId] ? players[targetId].nickname : '알수없음';
+            voteCounts[targetNick] = (voteCounts[targetNick] || 0) + 1;
+            if (!votersByTarget[targetNick]) votersByTarget[targetNick] = [];
+            votersByTarget[targetNick].push(voter.nickname);
+        });
+
+        const sorted = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+
+        if (sorted.length === 0) {
+            listBox.innerHTML = `<div>아직 아무도 투표하지 않았습니다.</div>`;
+        } else {
+            listBox.innerHTML = sorted.map(([targetNick, count]) => {
+                const voterNames = votersByTarget[targetNick].join(', ');
+                return `<div><b>${targetNick}</b> — ${count}표 (${voterNames})</div>`;
+            }).join('');
+        }
+
+        if (undecidedVoters.length > 0) {
+            listBox.innerHTML += `<div style="margin-top:6px; color:#888;">⏳ 미투표: ${undecidedVoters.join(', ')}</div>`;
+        }
     }
 }
 
@@ -823,3 +899,107 @@ function renderGameOverBoard(gameData, players) {
         resetControls.style.display = (currentUser && currentUser.isAdmin) ? 'block' : 'none';
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// [★신규] 교사 전용 토론 카운트다운 타이머
+// Firebase와 무관한, 교사 본인 브라우저에서만 동작하는 순수 로컬 타이머입니다.
+// 분/초를 지정해 시작하고, 0이 되면 비프음이 울립니다.
+// ─────────────────────────────────────────────────────────────────────
+window._countdownState = { remainingSec: 0, timerId: null, running: false };
+
+function _updateCountdownDisplay() {
+    const disp = document.getElementById('countdown-display');
+    if (!disp) return;
+    const total = Math.max(0, window._countdownState.remainingSec);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    disp.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    disp.style.color = (total <= 10 && total > 0) ? '#ff1744' : '#d32f2f';
+}
+
+// 카운트다운 종료 시 울리는 비프음 (외부 음원 파일 없이 Web Audio API로 직접 생성)
+function _playCountdownBeep() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const beepCount = 3;
+        const beepDuration = 0.28;
+        const gap = 0.15;
+
+        for (let i = 0; i < beepCount; i++) {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            const startTime = ctx.currentTime + i * (beepDuration + gap);
+            gain.gain.setValueAtTime(0.35, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + beepDuration);
+            osc.start(startTime);
+            osc.stop(startTime + beepDuration);
+        }
+    } catch (e) {
+        console.error('⏱️ 카운트다운 비프음 재생 실패 (브라우저 오디오 정책 문제일 수 있음):', e);
+    }
+}
+
+// 시작 - 이미 남은 시간이 있으면 이어서, 없으면 입력값(분/초)으로 새로 설정
+window.startCountdown = function() {
+    if (window._countdownState.running) return;
+
+    if (window._countdownState.remainingSec <= 0) {
+        const minInput = document.getElementById('countdown-min-input');
+        const secInput = document.getElementById('countdown-sec-input');
+        const min = parseInt(minInput?.value) || 0;
+        const sec = parseInt(secInput?.value) || 0;
+        window._countdownState.remainingSec = (min * 60) + sec;
+    }
+
+    if (window._countdownState.remainingSec <= 0) {
+        alert('⏱️ 먼저 분/초를 설정해 주세요.');
+        return;
+    }
+
+    window._countdownState.running = true;
+    _updateCountdownDisplay();
+
+    window._countdownState.timerId = setInterval(() => {
+        window._countdownState.remainingSec--;
+        _updateCountdownDisplay();
+
+        if (window._countdownState.remainingSec <= 0) {
+            clearInterval(window._countdownState.timerId);
+            window._countdownState.timerId = null;
+            window._countdownState.running = false;
+            _playCountdownBeep();
+        }
+    }, 1000);
+};
+
+// 일시정지 - 현재 남은 시간을 유지한 채로 멈춤 (다시 시작 누르면 이어서 진행)
+window.pauseCountdown = function() {
+    if (window._countdownState.timerId) {
+        clearInterval(window._countdownState.timerId);
+        window._countdownState.timerId = null;
+    }
+    window._countdownState.running = false;
+};
+
+// 초기화 - 타이머를 멈추고, 입력창의 분/초 값으로 다시 세팅
+window.resetCountdown = function() {
+    if (window._countdownState.timerId) {
+        clearInterval(window._countdownState.timerId);
+        window._countdownState.timerId = null;
+    }
+    window._countdownState.running = false;
+
+    const minInput = document.getElementById('countdown-min-input');
+    const secInput = document.getElementById('countdown-sec-input');
+    const min = parseInt(minInput?.value) || 0;
+    const sec = parseInt(secInput?.value) || 0;
+    window._countdownState.remainingSec = (min * 60) + sec;
+
+    _updateCountdownDisplay();
+};

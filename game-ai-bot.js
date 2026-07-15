@@ -37,9 +37,11 @@ window.triggerAiAutomation = function(status, voteState) {
             if (aiPlayers.length === 0) return;
 
             // -------------------------------------------------------------
-            // [분기 1] 낮 의심자 자유 투표 시간 (voting)
+            // [분기 1] 낮 의심자 자유 투표 시간
+            // [★수정] "투표 개시" 단계가 사라졌으므로, 재판(execution_trial) 중이 아니라면
+            // 낮 동안 언제든 AI도 자유롭게 지목 투표를 하도록 조건을 완화했습니다.
             // -------------------------------------------------------------
-            if (status === 'day_discuss' && voteState === 'voting') {
+            if (status === 'day_discuss' && voteState !== 'execution_trial') {
                 aiPlayers.forEach(([aiId, aiData]) => {
                     if (aiId === lastNightAssault) return; // 건달에게 폭행당했다면 낮 투표 패스
                     

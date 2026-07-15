@@ -283,6 +283,14 @@ function processNightActions() {
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';
 
-        getDb().ref().update(updates);
+        const isTransitioningToDay = (updates['game/status'] === 'day_discuss');
+
+        getDb().ref().update(updates).then(() => {
+            // [★신규] "투표 개시" 단계가 사라졌으므로, 밤이 끝나 낮이 시작되는 바로 이 순간
+            // 오프라인(AI 대타) 학생들도 곧바로 지목 투표를 하도록 트리거해야 합니다.
+            if (isTransitioningToDay && typeof window.triggerAiAutomation === 'function') {
+                window.triggerAiAutomation('day_discuss', 'voting');
+            }
+        });
     });
 }

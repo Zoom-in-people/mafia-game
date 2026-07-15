@@ -155,12 +155,35 @@
         <div id="admin-game-controls" style="display: none; border: 3px double #d32f2f; padding: 15px; border-radius: 10px; margin-top: 20px; background: #fff9f9;">
             <h3 style="color: #d32f2f; margin-bottom: 10px;">🚨 교사 전용 중앙 관제실</h3>
             
-            <button id="admin-start-vote-btn" onclick="serverStartDayVote()" style="background-color: #e65100; display: none;">🗳️ 낮 의심자 투표 개시</button>
+            <!-- [★신규] 낮 의심자 투표 개시 버튼 삭제 - 낮이면 언제나 투표 가능하도록 변경됨. 마감 버튼만 남김 -->
             <button id="admin-finish-vote-btn" onclick="serverFinishDayVote()" style="background-color: #d84315; display: none;">🚫 낮 의심자 투표 마감 및 동표 정산</button>
             <button id="admin-apply-execution-btn" onclick="serverCalculateExecution()" style="background-color: #b71c1c; display: none;">⚖️ 사형대 최종 재판 판결 마감 (처형/부활 계산)</button>
             
             <button id="next-stage-btn" onclick="handleNextStage()" class="btn-info">밤으로 단계 이동</button>
             <button onclick="handleForceStopGame()" class="btn-danger" style="margin-top: 15px;">💥 진행 중인 게임 파기 및 대기실 강제 리셋</button>
+
+            <!-- [★신규] 낮 실시간 투표 현황판 (지목 투표 + 재판 찬반 표결) -->
+            <div id="admin-live-vote-status" style="display:none; margin-top: 15px; border-top: 1px solid #ffcdd2; padding-top: 10px;">
+                <h4 style="color:#b71c1c; text-align:left; margin-bottom:5px;">🗳️ 실시간 투표 현황 (학생에겐 숨김)</h4>
+                <div id="admin-live-vote-list" class="log-box" style="background:#fff3e0; border-color:#ffb74d;"></div>
+            </div>
+
+            <!-- [★신규] 교사 전용 카운트다운 타이머 (토론 시간 관리용) -->
+            <div id="admin-countdown-panel" style="margin-top: 15px; border-top: 1px solid #ffcdd2; padding-top: 10px;">
+                <h4 style="color:#b71c1c; text-align:left; margin-bottom:8px;">⏱️ 토론 카운트다운 타이머</h4>
+                <div id="countdown-display" style="font-size: 32px; font-weight: bold; text-align:center; color:#d32f2f; background:#fff; border:2px solid #ef9a9a; border-radius:8px; padding:8px; margin-bottom:8px;">00:00</div>
+                <div style="display:flex; gap:6px; align-items:center; margin-bottom:8px;">
+                    <input type="number" id="countdown-min-input" min="0" value="3" style="margin:0; text-align:center;" placeholder="분">
+                    <span style="font-weight:bold;">분</span>
+                    <input type="number" id="countdown-sec-input" min="0" max="59" value="0" style="margin:0; text-align:center;" placeholder="초">
+                    <span style="font-weight:bold;">초</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button onclick="window.startCountdown()" style="background-color:#43a047; margin:0;">▶ 시작</button>
+                    <button onclick="window.pauseCountdown()" style="background-color:#fb8c00; margin:0;">⏸ 일시정지</button>
+                    <button onclick="window.resetCountdown()" style="background-color:#757575; margin:0;">🔄 초기화</button>
+                </div>
+            </div>
 
             <div id="admin-secret-monitor" style="display: none; margin-top: 15px; border-top: 1px solid #ffcdd2; padding-top: 10px;">
                 <h4 style="color: #b71c1c; text-align: left; margin-bottom: 5px;">🙈 실시간 학생 직업 일람표 (학생에겐 숨김)</h4>

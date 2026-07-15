@@ -156,7 +156,12 @@ function handleStartGame() {
 
         adminRevealMap = {}; 
         
-        getDb().ref().update(updates);
+        getDb().ref().update(updates).then(() => {
+            // [★신규] 게임 시작 즉시 낮이므로, 혹시 있을 AI 대타 학생들도 곧바로 투표 가능하도록 트리거
+            if (typeof window.triggerAiAutomation === 'function') {
+                window.triggerAiAutomation('day_discuss', 'voting');
+            }
+        });
     });
 }
 

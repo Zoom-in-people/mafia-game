@@ -1,33 +1,10 @@
 /**
  * 4-2. phase-day-vote.js
  * 낮 토론 시간 투표 개시, 마감, 사형대 소환 및 처형/부활 최종 표결 제어기 (매개변수 오타 교정판)
+ * [★수정] "투표 개시" 단계를 없애고, 낮(day_discuss)이면 언제든 자유롭게 지목 투표가
+ * 가능하도록 변경했습니다. game/vote_state는 이제 'execution_trial'(재판 진행 중)이 아닌 한
+ * 항상 지목 투표 가능 상태로 취급됩니다. 교사는 "투표 마감" 버튼만 누르면 됩니다.
  */
-
-// 낮 의심자 지목 투표 시작
-function serverStartDayVote() {
-    if (!currentUser || !currentUser.isAdmin) return;
-    
-    getDb().ref('game/players').get().then(snap => {
-        const players = snap.val() || {};
-        const updates = {};
-        
-        // 새로운 투표 판을 위해 기존 투표 및 재판 서명 데이터 초기화
-        for (let id in players) {
-            updates[`game/players/${id}/dayVote`] = "none";
-            updates[`game/players/${id}/trialDecision`] = "none";
-        }
-        updates['game/vote_state'] = 'voting';
-        
-        return getDb().ref().update(updates);
-    }).then(() => {
-        console.log("🗳️ 낮 의심자 지목 투표가 개시되었습니다.");
-        
-        // [★AI 연동] 투표가 시작되었으므로 오프라인(AI 대타) 학생들의 자동 랜덤 투표를 트리거합니다.
-        if (typeof window.triggerAiAutomation === 'function') {
-            window.triggerAiAutomation('day_discuss', 'voting');
-        }
-    }).catch(err => console.error("낮 투표 개시 오류:", err));
-}
 
 // 의심자 지목 투표 마감 및 동표 예외 처리 엔진
 function serverFinishDayVote() {
