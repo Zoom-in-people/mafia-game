@@ -277,8 +277,6 @@ function processNightActions() {
         updates['game/morning_report'] = nightSummaryReportText;
         queuePopupAlert(updates, `[아침 알림 - 밤사이 사건 브리핑]\n\n${nightSummaryReportText}`);
         updates['game/turn'] = currentTurnVal + 1;
-        updates['game/quiz_score'] = 0;
-        updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = Object.keys(morningSuspectCounts).length > 0 ? morningSuspectCounts : "none";
         updates['game/history_logs'] = historyLogs;
         updates['game/vote_state'] = 'none';

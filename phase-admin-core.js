@@ -62,14 +62,6 @@ window.handleModifyAccount = function(nick) {
     }).catch(err => alert('수정 실패: ' + err.message));
 };
 
-// ─── 퀴즈 단원 난이도 변경 ───
-window.changeQuizLevel = function(level) {
-    if (!currentUser || !currentUser.isAdmin) return;
-    getDb().ref('game/quiz_level').set(level).catch(err => {
-        console.error('퀴즈 난이도 설정 오류:', err);
-    });
-};
-
 // ─── 게임 시작 ───
 function handleStartGame() {
     if (!currentUser || !currentUser.isAdmin) return;
@@ -130,8 +122,6 @@ function handleStartGame() {
         updates['game/target_on_trial'] = 'none';
         updates['game/turn'] = 1;
         updates['game/morning_report'] = "첫 번째 아침이 밝았습니다. 자유롭게 토론하고 마피아를 추적하세요.";
-        updates['game/quiz_score'] = 0;
-        updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = "none";
         updates['game/history_logs'] = ["게임이 흥미진진하게 시작되었습니다!"];
         updates['game/last_night_assault'] = "none";
@@ -191,7 +181,6 @@ function handleResetToWaiting() {
         updates['game/turn'] = 1;
         updates['game/vote_state'] = 'none';
         updates['game/target_on_trial'] = 'none';
-        updates['game/current_hint'] = "없음";
         updates['game/last_night_suspects'] = "none";
         updates['game/history_logs'] = ["교사에 의해 새로운 대기실 세션이 강제 리셋되었습니다."];
         updates['game/last_night_assault'] = "none";
@@ -214,7 +203,6 @@ function handleResetToWaiting() {
         updates['game/reporter_announcement'] = "none";
 
         getDb().ref().update(updates).then(() => {
-            currentQuiz = null;
             isInAdminAccountsView = false;
             if (typeof window.rerenderAllUI === 'function') {
                 window.rerenderAllUI();

@@ -44,13 +44,7 @@
         <div id="waiting-player-grid" class="grid-container"></div>
         
         <div id="admin-setup-panel" style="display: none; border: 2px dashed #7b1fa2; padding: 15px; border-radius: 8px; margin-top: 15px;">
-            <h4 style="color:#7b1fa2; margin-bottom:10px;">⚙️ 교사 전용 직업 정원 구성 및 퀴즈 단원 설정</h4>
-            
-            <label><b>단원 난이도 설정:</b></label>
-            <select id="admin-quiz-level-select" onchange="changeQuizLevel(this.value)">
-                <option value="2-1">중2 과학 - 1단원 물질의 구성 (원소/분자)</option>
-                <option value="3-1">중3 과학 - 1단원 화학 반응의 규칙성</option>
-            </select>
+            <h4 style="color:#7b1fa2; margin-bottom:10px;">⚙️ 교사 전용 직업 정원 구성</h4>
 
             <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
                 <label>마피아 인원수:</label>
@@ -92,7 +86,8 @@
         </div>
 
         <div id="status-message" class="alert-box">첫 번째 아침이 밝았습니다. 자유롭게 토론하고 마피아를 추적하세요.</div>
-        <div id="hint-display" class="alert-box" style="background-color: #fff8e1; border-color: #ffb300; color: #b78103; display: none;">🔍 단서: 없음</div>
+        <!-- [★신규] 재판 대상자 안내 - 교사/유령(사망자) 전용. 투표권은 없고 누가 대상인지만 확인 가능 -->
+        <div id="trial-target-info" class="alert-box" style="display:none; background-color:#fce4ec; border-color:#ec407a; color:#880e4f;"></div>
 
         <div style="background-color: #333; color: #fff; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 12px; font-size: 14.5px;">
             <span>접속자: <span id="my-nick-name">로딩중</span> | </span>
@@ -119,6 +114,14 @@
             <h4 id="ghost-mission-title" style="margin: 0 0 5px 0; color: #4a148c;">🔮 무당의 영매 신호 수신</h4>
             <p id="quiz-question" style="font-size: 13.5px; font-weight: bold; margin: 0 0 8px 0; white-space: pre-line; color: #333;"></p>
             <div id="quiz-options"></div>
+
+            <!-- [★신규] 유령 전용 미니게임: 지뢰찾기 (기존 학업 퀴즈 대체) -->
+            <div id="ghost-minigame-wrap" style="display:none;">
+                <p style="font-size:12.5px; color:#666; margin:0 0 8px 0;">💣 지뢰를 피해 모든 칸을 열면, 살아있는 사람 중 한 명의 정체를 몰래 엿볼 수 있어요! (나만 볼 수 있어요)</p>
+                <div id="ghost-minigame-board"></div>
+                <button onclick="window._msNewGame()" style="margin-top:10px; background-color:#7b1fa2;">🎲 새 게임 시작</button>
+                <div id="ghost-reveal-log" class="log-box" style="margin-top:10px; background:#fce4ec; border-color:#f48fb1; display:none;"></div>
+            </div>
         </div>
 
         <h4 style="text-align: left; margin: 15px 0 5px 0; font-size: 14px; color:#555;">👥 교실 생존 현황판 (클릭하여 투표/능력 사용)</h4>
@@ -161,12 +164,6 @@
             
             <button id="next-stage-btn" onclick="handleNextStage()" class="btn-info">밤으로 단계 이동</button>
             <button onclick="handleForceStopGame()" class="btn-danger" style="margin-top: 15px;">💥 진행 중인 게임 파기 및 대기실 강제 리셋</button>
-
-            <!-- [★신규] 낮 실시간 투표 현황판 (지목 투표 + 재판 찬반 표결) -->
-            <div id="admin-live-vote-status" style="display:none; margin-top: 15px; border-top: 1px solid #ffcdd2; padding-top: 10px;">
-                <h4 style="color:#b71c1c; text-align:left; margin-bottom:5px;">🗳️ 실시간 투표 현황 (학생에겐 숨김)</h4>
-                <div id="admin-live-vote-list" class="log-box" style="background:#fff3e0; border-color:#ffb74d;"></div>
-            </div>
 
             <!-- [★신규] 교사 전용 카운트다운 타이머 (토론 시간 관리용) -->
             <div id="admin-countdown-panel" style="margin-top: 15px; border-top: 1px solid #ffcdd2; padding-top: 10px;">
