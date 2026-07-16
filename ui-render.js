@@ -217,7 +217,6 @@ window.exitAdminAccountsView = function() {
     isInAdminAccountsView = false;
     document.getElementById('admin-accounts-view').style.display = 'none';
     window.rerenderAllUI();
-    getDb().ref('game/quiz_score').transaction(c => c || 0);
 };
 
 window.toggleAdminRevealSecret = function(uid) {
@@ -756,8 +755,9 @@ function renderTeacherControlTower(gameData, players) {
     stageBtn.style.display = (voteState !== 'execution_trial') ? 'block' : 'none';
     stageBtn.innerText = (status === 'day_discuss') ? '🌙 교사 강제 밤 전환' : '☀️ 교사 밤 행동 마감 및 아침 개시';
 
-    // [★신규] 낮 실시간 투표 현황 - 지목 투표 + 재판 찬반 표결을 교사만 볼 수 있게 집계
-    renderLiveVoteStatus(gameData, players);
+    // [★수정] 실시간 투표 집계(누가 누구에게 투표하는지)는 학생 토론에 방해가 되어 완전히 제거했습니다.
+    // 대신 재판(execution_trial) 단계에서 "누가 대상자인지"만 표시합니다 (교사/유령 공통).
+    renderTrialTargetInfo(gameData, players);
 
     const monitorSec = document.getElementById('admin-secret-monitor');
     const tbody      = document.getElementById('admin-live-roles-table');
@@ -787,75 +787,33 @@ function renderTeacherControlTower(gameData, players) {
     }
 }
 
-// [★신규] 교사 전용 실시간 투표 현황판.
-// 낮 지목 투표(dayVote) 및 재판 찬반 표결(trialDecision)이 누구에게 몰리고 있는지
-// 학생들에게는 보이지 않고 교사 화면에만 실시간으로 집계되어 보입니다.
-function renderLiveVoteStatus(gameData, players) {
-    const section = document.getElementById('admin-live-vote-status');
-    const listBox = document.getElementById('admin-live-vote-list');
-    if (!section || !listBox) return;
+// [★신규] 재판 대상자 안내 패널.
+// 교사와 유령(사망자)은 투표권이 없지만, 지금 누가 처형/부활 재판을 받고 있는지는 알 수 있어야 합니다.
+// 실시간 득표 집계 같은 상세 정보는 주지 않고 "대상자가 누구인지"만 알려줍니다.
+// 생존 학생은 이미 자신의 투표 패널(renderStudentActionPanel)에서 대상자 이름을 보고 있으므로 여기선 제외합니다.
+function renderTrialTargetInfo(gameData, players) {
+    const box = document.getElementById('trial-target-info');
+    if (!box) return;
 
-    const status    = gameData.status || 'day_discuss';
-    const voteState = gameData.vote_state || 'none';
+    const voteState  = gameData.vote_state || 'none';
+    const targetUid  = gameData.target_on_trial || 'none';
 
-    if (status !== 'day_discuss') {
-        section.style.display = 'none';
+    const isAdmin = currentUser && currentUser.isAdmin;
+    const myData  = currentUser ? players[currentUser.id] : null;
+    const isGhost = myData && !myData.isAlive; // 사망한 유령 학생
+
+    if (!isAdmin && !isGhost) {
+        box.style.display = 'none';
         return;
     }
-    section.style.display = 'block';
 
-    if (voteState === 'execution_trial') {
-        // 재판 찬반 표결 집계
-        let executeVoters = [];
-        let reviveVoters = [];
-        let undecidedVoters = [];
-
-        Object.values(players).forEach(p => {
-            if (!p.isAlive) return;
-            if (p.trialDecision === 'execute') executeVoters.push(p.nickname);
-            else if (p.trialDecision === 'revive') reviveVoters.push(p.nickname);
-            else undecidedVoters.push(p.nickname);
-        });
-
-        listBox.innerHTML = `
-            <div><b>💀 처형 찬성 (${executeVoters.length}표):</b> ${executeVoters.join(', ') || '-'}</div>
-            <div><b>😇 무죄 부활 (${reviveVoters.length}표):</b> ${reviveVoters.join(', ') || '-'}</div>
-            <div><b>⏳ 미투표 (${undecidedVoters.length}명):</b> ${undecidedVoters.join(', ') || '-'}</div>
-        `;
-    } else {
-        // 지목 투표(의심자) 집계 - 득표순 정렬
-        const voteCounts = {};
-        const votersByTarget = {};
-        let undecidedVoters = [];
-
-        Object.values(players).forEach(voter => {
-            if (!voter.isAlive) return;
-            const targetId = voter.dayVote;
-            if (!targetId || targetId === 'none') {
-                undecidedVoters.push(voter.nickname);
-                return;
-            }
-            const targetNick = players[targetId] ? players[targetId].nickname : '알수없음';
-            voteCounts[targetNick] = (voteCounts[targetNick] || 0) + 1;
-            if (!votersByTarget[targetNick]) votersByTarget[targetNick] = [];
-            votersByTarget[targetNick].push(voter.nickname);
-        });
-
-        const sorted = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
-
-        if (sorted.length === 0) {
-            listBox.innerHTML = `<div>아직 아무도 투표하지 않았습니다.</div>`;
-        } else {
-            listBox.innerHTML = sorted.map(([targetNick, count]) => {
-                const voterNames = votersByTarget[targetNick].join(', ');
-                return `<div><b>${targetNick}</b> — ${count}표 (${voterNames})</div>`;
-            }).join('');
-        }
-
-        if (undecidedVoters.length > 0) {
-            listBox.innerHTML += `<div style="margin-top:6px; color:#888;">⏳ 미투표: ${undecidedVoters.join(', ')}</div>`;
-        }
+    if (voteState !== 'execution_trial' || targetUid === 'none' || !players[targetUid]) {
+        box.style.display = 'none';
+        return;
     }
+
+    box.style.display = 'block';
+    box.innerText = `⚖️ 현재 재판 대상자: [${players[targetUid].nickname}] — 처형/부활 최종 표결이 진행 중입니다.`;
 }
 
 function renderGameOverBoard(gameData, players) {
